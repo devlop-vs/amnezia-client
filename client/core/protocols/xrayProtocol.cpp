@@ -252,17 +252,39 @@ ErrorCode XrayProtocol::setupRouting()
 {
     return IpcClient::withInterface(
             [this](QSharedPointer<IpcInterfaceReplica> iface) -> ErrorCode {
+                qDebug().noquote() << "XrayProtocol::setupRouting begin"
+                                   << "tun=" << tunName
+                                   << "gateway=" << m_vpnGateway
+                                   << "remote=" << m_remoteAddress
+                                   << "routeMode=" << static_cast<int>(m_routeMode)
+                                   << "dns=" << QVariant::fromValue(m_dnsServers).toString();
 #ifdef Q_OS_WIN
                 const int inetAdapterIndex = NetworkUtilities::AdapterIndexTo(QHostAddress(m_remoteAddress));
 #endif
+                qDebug().noquote() << "XrayProtocol::setupRouting step=createTun"
+                                   << "tun=" << tunName
+                                   << "subnet=" << amnezia::protocols::xray::defaultLocalAddr;
                 auto createTun = iface->createTun(tunName, amnezia::protocols::xray::defaultLocalAddr);
-                if (!createTun.waitForFinished() || !createTun.returnValue()) {
+                const bool createTunFinished = createTun.waitForFinished();
+                const bool createTunOk = createTunFinished && createTun.returnValue();
+                qDebug().noquote() << "XrayProtocol::setupRouting step=createTun result"
+                                   << "finished=" << createTunFinished
+                                   << "ok=" << createTunOk;
+                if (!createTunOk) {
                     qCritical() << "Failed to assign IP address for TUN";
                     return ErrorCode::InternalError;
                 }
 
+                qDebug().noquote() << "XrayProtocol::setupRouting step=updateResolvers"
+                                   << "tun=" << tunName
+                                   << "dnsCount=" << m_dnsServers.count();
                 auto updateResolvers = iface->updateResolvers(tunName, m_dnsServers);
-                if (!updateResolvers.waitForFinished() || !updateResolvers.returnValue()) {
+                const bool updateResolversFinished = updateResolvers.waitForFinished();
+                const bool updateResolversOk = updateResolversFinished && updateResolvers.returnValue();
+                qDebug().noquote() << "XrayProtocol::setupRouting step=updateResolvers result"
+                                   << "finished=" << updateResolversFinished
+                                   << "ok=" << updateResolversOk;
+                if (!updateResolversOk) {
                     qCritical() << "Failed to set DNS resolvers for TUN";
                     return ErrorCode::InternalError;
                 }
@@ -280,13 +302,21 @@ ErrorCode XrayProtocol::setupRouting()
                 static const int vpnAdapterIndex = 0;
 #endif
                 const bool killSwitchEnabled = QVariant(m_rawConfig.value(configKey::killSwitchOption).toString()).toBool();
+                qDebug().noquote() << "XrayProtocol::setupRouting step=killSwitch"
+                                   << "enabled=" << killSwitchEnabled
+                                   << "vpnAdapterIndex=" << vpnAdapterIndex;
                 if (killSwitchEnabled) {
                     if (vpnAdapterIndex != -1) {
                         QJsonObject config = m_rawConfig;
                         config.insert("vpnServer", m_remoteAddress);
 
                         auto enableKillSwitch = IpcClient::Interface()->enableKillSwitch(config, vpnAdapterIndex);
-                        if (!enableKillSwitch.waitForFinished() || !enableKillSwitch.returnValue()) {
+                        const bool enableKillSwitchFinished = enableKillSwitch.waitForFinished();
+                        const bool enableKillSwitchOk = enableKillSwitchFinished && enableKillSwitch.returnValue();
+                        qDebug().noquote() << "XrayProtocol::setupRouting step=killSwitch result"
+                                           << "finished=" << enableKillSwitchFinished
+                                           << "ok=" << enableKillSwitchOk;
+                        if (!enableKillSwitchOk) {
                             qCritical() << "Failed to enable killswitch";
                             return ErrorCode::InternalError;
                         }
@@ -295,18 +325,50 @@ ErrorCode XrayProtocol::setupRouting()
                 }
 
                 if (m_routeMode == amnezia::RouteMode::VpnAllSites) {
+#ifdef Q_OS_MACOS
+                    qDebug().noquote() << "XrayProtocol::setupRouting step=serverBypassRoute"
+                                       << "remote=" << m_remoteAddress
+                                       << "routeGateway=" << m_routeGateway;
+                    auto serverBypassRoute = iface->routeAddList(m_routeGateway, QStringList() << m_remoteAddress);
+                    const bool serverBypassRouteFinished = serverBypassRoute.waitForFinished();
+                    const int serverBypassRouteCount = serverBypassRouteFinished ? serverBypassRoute.returnValue() : -1;
+                    qDebug().noquote() << "XrayProtocol::setupRouting step=serverBypassRoute result"
+                                       << "finished=" << serverBypassRouteFinished
+                                       << "applied=" << serverBypassRouteCount
+                                       << "expected=1";
+                    if (!serverBypassRouteFinished || serverBypassRouteCount != 1) {
+                        qCritical() << "Failed to add bypass route for xray server";
+                        return ErrorCode::InternalError;
+                    }
+#endif
+
                     static const QStringList subnets = { "1.0.0.0/8",  "2.0.0.0/7",  "4.0.0.0/6",  "8.0.0.0/5",
                                                          "16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1" };
 
+                    qDebug().noquote() << "XrayProtocol::setupRouting step=routeAddList"
+                                       << "gateway=" << m_vpnGateway
+                                       << "subnetCount=" << subnets.count();
                     auto routeAddList = iface->routeAddList(m_vpnGateway, subnets);
-                    if (!routeAddList.waitForFinished() || routeAddList.returnValue() != subnets.count()) {
+                    const bool routeAddListFinished = routeAddList.waitForFinished();
+                    const int routeAddListCount = routeAddListFinished ? routeAddList.returnValue() : -1;
+                    qDebug().noquote() << "XrayProtocol::setupRouting step=routeAddList result"
+                                       << "finished=" << routeAddListFinished
+                                       << "applied=" << routeAddListCount
+                                       << "expected=" << subnets.count();
+                    if (!routeAddListFinished || routeAddListCount != subnets.count()) {
                         qCritical() << "Failed to set routes for TUN";
                         return ErrorCode::InternalError;
                     }
                 }
 
+                qDebug().noquote() << "XrayProtocol::setupRouting step=StopRoutingIpv6";
                 auto StopRoutingIpv6 = iface->StopRoutingIpv6();
-                if (!StopRoutingIpv6.waitForFinished() || !StopRoutingIpv6.returnValue()) {
+                const bool stopRoutingIpv6Finished = StopRoutingIpv6.waitForFinished();
+                const bool stopRoutingIpv6Ok = stopRoutingIpv6Finished && StopRoutingIpv6.returnValue();
+                qDebug().noquote() << "XrayProtocol::setupRouting step=StopRoutingIpv6 result"
+                                   << "finished=" << stopRoutingIpv6Finished
+                                   << "ok=" << stopRoutingIpv6Ok;
+                if (!stopRoutingIpv6Ok) {
                     qCritical() << "Failed to disable IPv6 routing";
                     return ErrorCode::InternalError;
                 }
@@ -327,6 +389,7 @@ ErrorCode XrayProtocol::setupRouting()
                 } else
                     qWarning() << "Failed to get adapter indexes. Split-tunneling disabled";
 #endif
+                qDebug().noquote() << "XrayProtocol::setupRouting success";
                 return ErrorCode::NoError;
             },
             []() { return ErrorCode::AmneziaServiceConnectionFailed; });

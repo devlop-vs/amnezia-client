@@ -12,6 +12,7 @@
 #include "secureQSettings.h"
 
 #if defined(Q_OS_ANDROID)
+    #include <android/log.h>
     #include "core/utils/installedAppsImageProvider.h"
     #include "platforms/android/android_controller.h"
 #endif
@@ -238,9 +239,12 @@ void CoreController::initControllers()
 void CoreController::initAndroidController()
 {
 #ifdef Q_OS_ANDROID
+    __android_log_print(ANDROID_LOG_WARN, "AmneziaQt", "CoreController::initAndroidController ENTER");
     if (!AndroidController::initLogging()) {
+        __android_log_print(ANDROID_LOG_ERROR, "AmneziaQt", "AndroidController::initLogging returned false");
         qFatal("Android logging initialization failed");
     }
+    __android_log_print(ANDROID_LOG_WARN, "AmneziaQt", "AndroidController::initLogging OK");
     AndroidController::instance()->setSaveLogs(m_appSettingsRepository->isSaveLogs());
     AndroidController::instance()->setScreenshotsEnabled(m_appSettingsRepository->isScreenshotsEnabled());
 
@@ -249,6 +253,7 @@ void CoreController::initAndroidController()
     }
 
     if (m_engine) {
+        __android_log_print(ANDROID_LOG_WARN, "AmneziaQt", "AndroidController::installedAppImage OK");
         m_engine->addImageProvider(QLatin1String("installedAppImage"), new InstalledAppsImageProvider);
     }
 #endif

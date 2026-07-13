@@ -149,7 +149,7 @@ case "$TARGET" in
         fi
 
         toolchain_dir=$(get_abi_folder "$toolchain_abi")
-        : ${CMAKE_PREFIX_PATH:="$QT_ROOT_PATH/$toolchain_dir/lib/cmake/Qt6/qt.toolchain.cmake"}
+        : ${CMAKE_PREFIX_PATH:="$QT_ROOT_PATH/$toolchain_dir"}
         : ${CMAKE_TOOLCHAIN_FILE:="$QT_ROOT_PATH/$toolchain_dir/lib/cmake/Qt6/qt.toolchain.cmake"}
         ;;
     *) echo "Unsupported target \"$TARGET\""; exit 1 ;;

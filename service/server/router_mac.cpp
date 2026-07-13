@@ -131,23 +131,46 @@ bool RouterMac::routeDeleteList(const QString &gw, const QStringList &ips)
 }
 
 bool RouterMac::createTun(const QString &dev, const QString &subnet) {
-    qDebug().noquote() << "createTun start";
+    qDebug().noquote() << "createTun start" << "dev=" << dev << "subnet=" << subnet;
 
     QProcess process;
     QStringList commands;
 
     commands << "ifconfig" << dev << "inet" << subnet << subnet << "up";
+    qDebug().noquote() << "createTun command: sudo" << commands.join(' ');
     process.start("sudo", commands);
     if (!process.waitForStarted(1000))
     {
-        qDebug().noquote() << "Could not start activate tun device!\n";
+        qDebug().noquote() << "Could not start activate tun device!"
+                           << "error=" << process.error()
+                           << "stderr=" << process.readAllStandardError()
+                           << "stdout=" << process.readAllStandardOutput();
         return false;
     }
     else if (!process.waitForFinished(2000))
     {
-        qDebug().noquote() << "Could not activate tun device!\n";
+        qDebug().noquote() << "Could not activate tun device!"
+                           << "state=" << process.state()
+                           << "stderr=" << process.readAllStandardError()
+                           << "stdout=" << process.readAllStandardOutput();
         return false;
     }
+
+    const QByteArray stdErr = process.readAllStandardError();
+    const QByteArray stdOut = process.readAllStandardOutput();
+    qDebug().noquote() << "createTun finished"
+                       << "exitCode=" << process.exitCode()
+                       << "exitStatus=" << process.exitStatus()
+                       << "stderr=" << stdErr
+                       << "stdout=" << stdOut;
+
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        qWarning().noquote() << "createTun failed with non-zero exit"
+                             << "exitCode=" << process.exitCode()
+                             << "exitStatus=" << process.exitStatus();
+        return false;
+    }
+
     commands.clear();
 
     return true;
@@ -155,7 +178,10 @@ bool RouterMac::createTun(const QString &dev, const QString &subnet) {
 
 bool RouterMac::updateResolvers(const QString& ifname, const QList<QHostAddress>& resolvers)
 {
-    return m_dnsUtil->updateResolvers(ifname, resolvers);
+    qDebug().noquote() << "RouterMac::updateResolvers" << "ifname=" << ifname << "resolvers=" << QVariant::fromValue(resolvers).toString();
+    const bool ok = m_dnsUtil->updateResolvers(ifname, resolvers);
+    qDebug().noquote() << "RouterMac::updateResolvers result" << ok;
+    return ok;
 }
 
 bool RouterMac::restoreResolvers() {

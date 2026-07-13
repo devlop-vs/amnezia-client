@@ -246,6 +246,7 @@ int PageController::getImeHeight()
 
 void PageController::onShowErrorMessage(ErrorCode errorCode)
 {
+    qWarning() << "PageController::onShowErrorMessage errorCode=" << static_cast<int>(errorCode);
     const auto fullErrorMessage = errorString(errorCode);
     const auto errorMessage = fullErrorMessage.mid(fullErrorMessage.indexOf(". ") + 1); // remove ErrorCode %1.
     const auto errorUrl = QStringLiteral("troubleshooting/error-codes/#error-%1-%2").arg(static_cast<int>(errorCode)).arg(utils::enumToString(errorCode).toLower());

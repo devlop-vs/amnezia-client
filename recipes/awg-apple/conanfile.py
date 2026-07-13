@@ -10,6 +10,7 @@ import os
 class AwgApple(ConanFile):
     name = "awg-apple"
     version = "2.0.2"
+    package_type = "static-library"
     settings = "os", "arch", "compiler"
 
     @property

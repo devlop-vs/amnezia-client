@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QByteArray>
+#include <QList>
 #include <QMap>
 
 #include "core/repositories/secureServersRepository.h"
@@ -76,6 +77,7 @@ private:
     QJsonObject extractOpenVpnConfig(const QString &data) const;
     QJsonObject extractWireGuardConfig(const QString &data, ConfigTypes &configType) const;
     QJsonObject extractXrayConfig(const QString &data, ConfigTypes configType, const QString &description = "") const;
+    QList<QJsonObject> splitXrayConfigIfMultiOutbound(const QJsonObject &config) const;
     void checkForMaliciousStrings(const QJsonObject &serverConfig, QString &warningText) const;
     void processAmneziaConfig(QJsonObject &config) const;
 

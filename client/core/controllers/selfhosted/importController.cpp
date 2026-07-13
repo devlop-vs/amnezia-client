@@ -12,6 +12,7 @@
 #include <QRegularExpressionMatchIterator>
 #include <QUrl>
 #include <algorithm>
+#include <tuple>
 
 #include "core/utils/containerEnum.h"
 #include "core/utils/containers/containerUtils.h"
@@ -69,6 +70,101 @@ namespace
             return ConfigTypes::OpenVpn;
         }
         return ConfigTypes::Invalid;
+    }
+
+    // Returns true if the outbound is a "proxy" outbound (vless/vmess/trojan/shadowsocks),
+    // as opposed to freedom/blackhole/dns/loopback which are utility outbounds.
+    bool isProxyOutbound(const QJsonObject &outbound)
+    {
+        const QString proto = outbound.value("protocol").toString().toLower();
+        return proto == "vless" || proto == "vmess" || proto == "trojan" || proto == "shadowsocks";
+    }
+
+    // Extracts the first "address" from a proxy outbound's settings.vnext[]/servers[].
+    QString outboundAddress(const QJsonObject &outbound)
+    {
+        const QJsonObject settings = outbound.value("settings").toObject();
+        const QJsonArray vnext = settings.value("vnext").toArray();
+        if (!vnext.isEmpty()) {
+            return vnext.at(0).toObject().value("address").toString();
+        }
+        const QJsonArray servers = settings.value("servers").toArray();
+        if (!servers.isEmpty()) {
+            return servers.at(0).toObject().value("address").toString();
+        }
+        return {};
+    }
+
+    // Splits a multi-outbound xray config into one config per proxy outbound.
+    // Returns a list of (hostName, xrayJsonString, description) for each proxy outbound.
+    // Returns an empty list if there is only 0 or 1 proxy outbound (no split needed).
+    QList<std::tuple<QString, QString, QString>> splitXrayConfigByOutbound(const QString &xrayJson)
+    {
+        QList<std::tuple<QString, QString, QString>> result;
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(xrayJson.toUtf8(), &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            return result;
+        }
+        QJsonObject root = doc.object();
+        QJsonArray outbounds = root.value("outbounds").toArray();
+
+        QList<int> proxyIndexes;
+        for (int i = 0; i < outbounds.size(); ++i) {
+            if (isProxyOutbound(outbounds.at(i).toObject())) {
+                proxyIndexes.append(i);
+            }
+        }
+        if (proxyIndexes.size() <= 1) {
+            return result; // nothing to split
+        }
+
+        for (int idx : proxyIndexes) {
+            QJsonObject proxy = outbounds.at(idx).toObject();
+            const QString address = outboundAddress(proxy);
+            QString tag = proxy.value("tag").toString();
+            if (tag.isEmpty()) {
+                tag = QString("outbound-%1").arg(idx);
+            }
+
+            // Build a new outbounds array: this proxy first (default), plus any non-proxy
+            // utility outbounds (freedom/blackhole/dns) preserved so routing still works.
+            QJsonArray newOutbounds;
+            newOutbounds.append(proxy);
+            for (int j = 0; j < outbounds.size(); ++j) {
+                if (proxyIndexes.contains(j)) continue;
+                newOutbounds.append(outbounds.at(j));
+            }
+
+            QJsonObject newRoot = root;
+            newRoot.insert("outbounds", newOutbounds);
+
+            // Drop routing rules referencing other proxy outbounds by tag,
+            // since they no longer exist in this per-server config.
+            if (newRoot.contains("routing")) {
+                QJsonObject routing = newRoot.value("routing").toObject();
+                QJsonArray rules = routing.value("rules").toArray();
+                QJsonArray keptRules;
+                QStringList validTags;
+                for (const QJsonValue &v : newOutbounds) {
+                    const QString t = v.toObject().value("tag").toString();
+                    if (!t.isEmpty()) validTags.append(t);
+                }
+                for (const QJsonValue &rv : rules) {
+                    QJsonObject rule = rv.toObject();
+                    const QString target = rule.value("outboundTag").toString();
+                    if (target.isEmpty() || validTags.contains(target)) {
+                        keptRules.append(rule);
+                    }
+                }
+                routing.insert("rules", keptRules);
+                newRoot.insert("routing", routing);
+            }
+
+            const QString newJson = QJsonDocument(newRoot).toJson(QJsonDocument::Compact);
+            result.append(std::make_tuple(address, newJson, tag));
+        }
+        return result;
     }
 } // namespace
 
@@ -386,6 +482,16 @@ void ImportController::importConfig(const QJsonObject &config)
     credentials.secretData = config.value(configKey::password).toString();
 
     if (credentials.isValid() || config.contains(configKey::containers)) {
+        // If this is an imported multi-outbound Xray/Ssxray config, split it into
+        // one server entry per proxy outbound (vless/vmess/trojan/shadowsocks).
+        const QList<QJsonObject> splitConfigs = splitXrayConfigIfMultiOutbound(config);
+        if (!splitConfigs.isEmpty()) {
+            for (const QJsonObject &c : splitConfigs) {
+                m_serversRepository->addServer(QString(), c, serverConfigUtils::configTypeFromJson(c));
+            }
+            emit importFinished();
+            return;
+        }
         m_serversRepository->addServer(QString(), config, serverConfigUtils::configTypeFromJson(config));
         emit importFinished();
     } else if (config.contains(configKey::configVersion)) {
@@ -706,6 +812,53 @@ QJsonObject ImportController::extractXrayConfig(const QString &data, ConfigTypes
     config[configKey::hostName] = hostName;
 
     return config;
+}
+
+QList<QJsonObject> ImportController::splitXrayConfigIfMultiOutbound(const QJsonObject &config) const
+{
+    QList<QJsonObject> result;
+
+    // Only handle single-container xray/ssxray configs produced by extractXrayConfig.
+    const QJsonArray containers = config.value(configKey::containers).toArray();
+    if (containers.size() != 1) return result;
+    const QJsonObject container = containers.at(0).toObject();
+    const QString containerName = container.value(configKey::container).toString();
+    if (containerName != configKey::amneziaXray && containerName != configKey::amneziaSsxray) {
+        return result;
+    }
+    const QString protoKey = (containerName == configKey::amneziaSsxray) ? configKey::ssxray : configKey::xray;
+    const QJsonObject protoBlock = container.value(protoKey).toObject();
+    const QString lastConfigStr = protoBlock.value(configKey::lastConfig).toString();
+    if (lastConfigStr.isEmpty()) return result;
+
+    const auto splits = splitXrayConfigByOutbound(lastConfigStr);
+    if (splits.isEmpty()) return result;
+
+    const QString baseDescription = config.value(configKey::description).toString();
+
+    for (const auto &tup : splits) {
+        const QString &address = std::get<0>(tup);
+        const QString &json = std::get<1>(tup);
+        const QString &tag = std::get<2>(tup);
+
+        QJsonObject newLastConfig = protoBlock;
+        newLastConfig[configKey::lastConfig] = json;
+
+        QJsonObject newContainer = container;
+        newContainer.insert(protoKey, newLastConfig);
+
+        QJsonArray newContainers;
+        newContainers.append(newContainer);
+
+        QJsonObject newConfig = config;
+        newConfig.insert(configKey::containers, newContainers);
+        newConfig.insert(configKey::hostName, address);
+        const QString desc = baseDescription.isEmpty() ? tag : QString("%1 - %2").arg(baseDescription, tag);
+        newConfig.insert(configKey::description, desc);
+
+        result.append(newConfig);
+    }
+    return result;
 }
 
 void ImportController::checkForMaliciousStrings(const QJsonObject &serverConfig, QString &warningText) const

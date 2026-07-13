@@ -98,40 +98,53 @@ ErrorCode ConnectionController::defaultContainerForServer(const QString &serverI
 
 ErrorCode ConnectionController::isConnectionSupported(const QString &serverId) const
 {
+    //添加测试到底连接的问题是哪个?
+    qWarning() << "isConnectionSupported ENTER serverId=" << serverId;
     if (serverId.isEmpty()) {
+        qWarning() << "isConnectionSupported: serverId empty -> InternalError";
         return ErrorCode::InternalError;
     }
 
     if (!isServiceReady()) {
+        qWarning() << "isConnectionSupported: service not ready";
         return ErrorCode::AmneziaServiceNotRunning;
     }
 
     const serverConfigUtils::ConfigType kind = m_serversRepository->serverKind(serverId);
+    qWarning() << "isConnectionSupported: kind=" << static_cast<int>(kind);
     if (serverConfigUtils::isLegacyApiSubscription(kind)) {
+        qWarning() << "isConnectionSupported: legacy api v1";
         return ErrorCode::LegacyApiV1NotSupportedError;
     }
 
     DockerContainer container = DockerContainer::None;
     const ErrorCode errorCode = defaultContainerForServer(serverId, container);
+    qWarning() << "isConnectionSupported: defaultContainerForServer errorCode=" << static_cast<int>(errorCode)
+               << " container=" << static_cast<int>(container);
     if (errorCode != ErrorCode::NoError) {
         return errorCode;
     }
 
     if (container == DockerContainer::None) {
         if (serverConfigUtils::isApiV2Subscription(kind)) {
+            qWarning() << "isConnectionSupported: api v2 subscription OK";
             return ErrorCode::NoError;
         }
+        qWarning() << "isConnectionSupported: no installed containers";
         return ErrorCode::NoInstalledContainersError;
     }
 
     if (ContainerUtils::isUnsupportedContainer(container)) {
+        qWarning() << "isConnectionSupported: unsupported container";
         return ErrorCode::LegacyContainerNotSupportedError;
     }
 
     if (!isContainerSupported(container)) {
+        qWarning() << "isConnectionSupported: container not supported on this platform";
         return ErrorCode::NotSupportedOnThisPlatform;
     }
 
+    qWarning() << "isConnectionSupported: OK,Already finished";
     return ErrorCode::NoError;
 }
 

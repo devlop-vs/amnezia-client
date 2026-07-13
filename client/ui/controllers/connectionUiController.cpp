@@ -27,12 +27,16 @@ ConnectionUiController::ConnectionUiController(ConnectionController* connectionC
 
 void ConnectionUiController::openConnection()
 {
+    qWarning() << "ConnectionUiController::openConnection ENTER";
     const QString serverId = m_serversController->getDefaultServerId();
+    qWarning() << "ConnectionUiController::openConnection serverId=" << serverId;
     if (serverId.isEmpty()) {
+        qWarning() << "ConnectionUiController::openConnection serverId is empty, silent return";
         return;
     }
 
     ErrorCode errorCode = m_connectionController->openConnection(serverId);
+    qWarning() << "ConnectionUiController::openConnection m_connectionController->openConnection returned" << static_cast<int>(errorCode);
 
     if (errorCode != ErrorCode::NoError) {
         notifyConnectionBlocked(errorCode);
@@ -52,6 +56,7 @@ ErrorCode ConnectionUiController::getLastConnectionError()
 
 void ConnectionUiController::onConnectionStateChanged(Vpn::ConnectionState state)
 {
+    qWarning() << "ConnectionUiController::onConnectionStateChanged state=" << static_cast<int>(state);
     m_state = state;
 
     m_isConnected = false;
@@ -122,6 +127,7 @@ QString ConnectionUiController::connectionStateText() const
 
 void ConnectionUiController::toggleConnection()
 {
+    qWarning() << "ConnectionUiController::toggleConnection ENTER m_state=" << static_cast<int>(m_state);
     if (m_state == Vpn::ConnectionState::Preparing) {
         emit preparingConfig();
         return;
@@ -149,6 +155,7 @@ void ConnectionUiController::toggleConnection()
 
 void ConnectionUiController::notifyConnectionBlocked(ErrorCode errorCode)
 {
+    qWarning() << "ConnectionUiController::notifyConnectionBlocked errorCode=" << static_cast<int>(errorCode);
     if (errorCode == ErrorCode::LegacyApiV1NotSupportedError) {
         emit unsupportedConnectDrawerRequested();
         return;

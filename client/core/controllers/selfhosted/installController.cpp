@@ -327,25 +327,35 @@ ErrorCode InstallController::validateAndPrepareConfig(const QString &serverId)
     case serverConfigUtils::ConfigType::Native: {
         const auto cfg = m_serversRepository->nativeConfig(serverId);
         if (!cfg.has_value()) {
+            qWarning() << "InstallController::validateAndPrepareConfig Native cfg=nullopt";
             return ErrorCode::InternalError;
         }
         container = cfg->defaultContainer;
         containerConfig = cfg->containerConfig(container);
+        qWarning() << "InstallController::validateAndPrepareConfig Native container=" << (int)container
+                   << " hasClientConfig=" << containerConfig.protocolConfig.hasClientConfig();
         break;
     }
     default:
+        qWarning() << "InstallController::validateAndPrepareConfig default branch kind=" << (int)kind;
         return ErrorCode::InternalError;
     }
 
     if (container == DockerContainer::None) {
+        qWarning() << "InstallController::validateAndPrepareConfig NoInstalledContainersError";
         return ErrorCode::NoInstalledContainersError;
     }
 
     if (containerConfig.protocolConfig.hasClientConfig()) {
+        //当 hasClientConfig() == false 且 kind != SelfHostedAdmin 时返回 InternalError。
+        //你导入的 Xray 配置
+        //如果没有 clientConfig（可能仅有 server config），就会命中这里。
+        qWarning() << "InstallController::validateAndPrepareConfig OK (hasClientConfig)";
         return ErrorCode::NoError;
     }
 
     if (kind != serverConfigUtils::ConfigType::SelfHostedAdmin) {
+        qWarning() << "InstallController::validateAndPrepareConfig InternalError: kind!=SelfHostedAdmin and no client config, kind=" << (int)kind << " container=" << (int)container;
         return ErrorCode::InternalError;
     }
 
