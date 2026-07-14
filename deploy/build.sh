@@ -52,7 +52,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 : ${SOURCE_PATH:=$(pwd)}
-: ${BUILD_PATH:="$SOURCE_PATH/deploy/build"}
 : ${INSTALLERS:="${installers[@]}"}
 : ${ABIS:="${abis[@]}"}
 : ${ABIS:="all"}
@@ -61,6 +60,18 @@ done
 
 HOST=$(echo "$HOST" | tr '[:upper:]' '[:lower:]')
 TARGET=$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')
+
+# Set per-target build directory if not explicitly specified via -b/--build
+if [[ -z "$BUILD_PATH" ]]; then
+    case "$TARGET" in
+        ios)        BUILD_PATH="$SOURCE_PATH/deploy/dist-ios"     ;;
+        darwin|macos) BUILD_PATH="$SOURCE_PATH/deploy/dist-macos"  ;;
+        android)    BUILD_PATH="$SOURCE_PATH/deploy/dist-android"  ;;
+        linux)      BUILD_PATH="$SOURCE_PATH/deploy/dist-linux"    ;;
+        macos-ne)   BUILD_PATH="$SOURCE_PATH/deploy/dist-macos-ne" ;;
+        *)          BUILD_PATH="$SOURCE_PATH/deploy/dist"  ;;
+    esac
+fi
 
 bases=(~/Qt /opt/Qt)
 [ -n "${QT_INSTALL_DIR}" ] && bases=("${QT_INSTALL_DIR}/Qt" "${bases[@]}")

@@ -23,11 +23,16 @@ execute_process(
 
 add_definitions(-DGIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
 
-add_definitions(-DPROD_AGW_PUBLIC_KEY="$ENV{PROD_AGW_PUBLIC_KEY}")
+# Escape newlines in PEM keys to produce single-line -D flags
+# (Unix Makefiles generator cannot handle multi-line defines in flags.make)
+string(REPLACE "\n" "\\n" _prod_agw_key "$ENV{PROD_AGW_PUBLIC_KEY}")
+string(REPLACE "\n" "\\n" _dev_agw_key  "$ENV{DEV_AGW_PUBLIC_KEY}")
+
+add_definitions(-DPROD_AGW_PUBLIC_KEY="${_prod_agw_key}")
 add_definitions(-DPROD_S3_ENDPOINT="$ENV{PROD_S3_ENDPOINT}")
 add_definitions(-DFALLBACK_S3_ENDPOINT="$ENV{FALLBACK_S3_ENDPOINT}")
 
-add_definitions(-DDEV_AGW_PUBLIC_KEY="$ENV{DEV_AGW_PUBLIC_KEY}")
+add_definitions(-DDEV_AGW_PUBLIC_KEY="${_dev_agw_key}")
 add_definitions(-DDEV_AGW_ENDPOINT="$ENV{DEV_AGW_ENDPOINT}")
 add_definitions(-DDEV_S3_ENDPOINT="$ENV{DEV_S3_ENDPOINT}")
 
@@ -52,6 +57,10 @@ if(WIN32 OR (APPLE AND NOT IOS) OR (LINUX AND NOT ANDROID))
 endif()
 
 qt_standard_project_setup()
+
+# Set QML import path so Qt Creator can resolve custom QML modules (e.g. Style)
+set(QML_IMPORT_PATH "${CMAKE_CURRENT_LIST_DIR}/ui/qml/Modules" CACHE STRING "Qt Creator QML import path" FORCE)
+
 qt_add_executable(${PROJECT} MANUAL_FINALIZATION)
 target_include_directories(${PROJECT} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
