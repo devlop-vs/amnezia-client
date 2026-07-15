@@ -34,6 +34,7 @@ namespace
         constexpr char subscriptionPlans[] = "subscription_plans";
         constexpr char minPriceLabel[] = "min_price_label";
         constexpr char benefits[] = "benefits";
+        constexpr char recommended[] = "recommended";
     }
 
     namespace serviceType
@@ -110,7 +111,7 @@ QVariant ApiServicesModel::data(const QModelIndex &index, int role) const
         return apiServiceData.serviceInfo.privacyPolicyUrl;
     }
     case ShowRecommendedRole: {
-        return serviceType == serviceType::amneziaPremium;
+        return apiServiceData.recommended;
     }
     case OrderRole: {
         if (serviceType == serviceType::amneziaPremium) {
@@ -278,6 +279,7 @@ ApiServicesModel::ApiServicesData ApiServicesModel::getApiServicesData(const QJs
 
     serviceData.type = serviceType;
     serviceData.protocol = serviceProtocol;
+    serviceData.recommended = data.value(configKey::recommended).toBool();
 
     serviceData.storeEndpoint = data.value(configKey::storeEndpoint).toString();
 

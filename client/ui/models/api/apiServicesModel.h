@@ -47,6 +47,8 @@ public:
         QJsonArray benefits;
 
         QString minPriceLabel;
+
+        bool recommended = false;
     };
 
     enum Roles {

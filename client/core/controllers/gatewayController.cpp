@@ -220,10 +220,19 @@ GatewayController::DecryptionResult GatewayController::tryDecryptResponseBody(co
 
 ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject apiPayload, QByteArray &responseBody)
 {
+    qDebug().noquote() << "[GatewayController::post] Endpoint:" << endpoint;
+    qDebug().noquote() << "[GatewayController::post] API payload:" << QJsonDocument(apiPayload).toJson(QJsonDocument::Compact);
+    qDebug().noquote() << "[GatewayController::post] Gateway endpoint:" << m_gatewayEndpoint;
+    qDebug().noquote() << "[GatewayController::post] Is dev env:" << m_isDevEnvironment;
+
     EncryptedRequestData encRequestData = prepareRequest(endpoint, apiPayload);
     if (encRequestData.errorCode != ErrorCode::NoError) {
+        qDebug().noquote() << "[GatewayController::post] prepareRequest failed, errorCode:" << static_cast<int>(encRequestData.errorCode);
         return encRequestData.errorCode;
     }
+
+    qDebug().noquote() << "[GatewayController::post] Request URL:" << encRequestData.request.url().toString();
+    qDebug().noquote() << "[GatewayController::post] Request body size:" << encRequestData.requestBody.size();
 
     QNetworkReply *reply = amnApp->networkManager()->post(encRequestData.request, encRequestData.requestBody);
 
@@ -241,8 +250,18 @@ ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject api
 
     reply->deleteLater();
 
+    qDebug().noquote() << "[GatewayController::post] HTTP status code:" << httpStatusCode;
+    qDebug().noquote() << "[GatewayController::post] Reply error:" << replyError << replyErrorString;
+    qDebug().noquote() << "[GatewayController::post] SSL errors count:" << sslErrors.size();
+    qDebug().noquote() << "[GatewayController::post] Encrypted response body size:" << encryptedResponseBody.size();
+    qDebug().noquote() << "[GatewayController::post] Encrypted response body (hex, first 128 bytes):" << encryptedResponseBody.left(128).toHex();
+
     auto decryptionResult =
             tryDecryptResponseBody(encryptedResponseBody, replyError, encRequestData.key, encRequestData.iv, encRequestData.salt);
+
+    qDebug().noquote() << "[GatewayController::post] Decryption successful:" << decryptionResult.isDecryptionSuccessful;
+    qDebug().noquote() << "[GatewayController::post] Decrypted body size:" << decryptionResult.decryptedBody.size();
+    qDebug().noquote() << "[GatewayController::post] Decrypted body (first 2048 bytes):" << decryptionResult.decryptedBody.left(2048);
 
     if (sslErrors.isEmpty() && shouldBypassProxy(replyError, decryptionResult.decryptedBody, decryptionResult.isDecryptionSuccessful)) {
         auto requestFunction = [&encRequestData, &encryptedResponseBody](const QString &url) {
@@ -277,14 +296,17 @@ ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject api
     const auto errorCode =
             apiUtils::checkNetworkReplyErrors(sslErrors, replyErrorString, replyError, httpStatusCode, responseBody);
     if (errorCode) {
+        qDebug().noquote() << "[GatewayController::post] checkNetworkReplyErrors returned errorCode:" << static_cast<int>(errorCode);
         return errorCode;
     }
 
     if (!decryptionResult.isDecryptionSuccessful) {
         qCritical() << "error when decrypting the request body";
+        qDebug().noquote() << "[GatewayController::post] Decryption failed, returning ApiConfigDecryptionError";
         return ErrorCode::ApiConfigDecryptionError;
     }
 
+    qDebug().noquote() << "[GatewayController::post] Success, final response body:" << responseBody.left(2048);
     return ErrorCode::NoError;
 }
 

@@ -218,19 +218,31 @@ ErrorCode ServicesCatalogController::fillAvailableServices(QJsonObject &services
     apiPayload[apiDefs::key::cliName] = QString(APPLICATION_NAME);
     apiPayload[apiDefs::key::appLanguage] = m_appSettingsRepository->getAppLanguage().name().split("_").first();
 
+    qDebug().noquote() << "[fillAvailableServices] Request payload:" << QJsonDocument(apiPayload).toJson(QJsonDocument::Compact);
+    qDebug().noquote() << "[fillAvailableServices] Gateway endpoint:" << m_appSettingsRepository->getGatewayEndpoint();
+    qDebug().noquote() << "[fillAvailableServices] Is dev environment:" << m_appSettingsRepository->isDevGatewayEnv();
+
     QByteArray responseBody;
     ErrorCode errorCode = executeRequest(QString("%1v1/services"), apiPayload, responseBody);
+
+    qDebug().noquote() << "[fillAvailableServices] executeRequest errorCode:" << static_cast<int>(errorCode);
+    qDebug().noquote() << "[fillAvailableServices] Response body size:" << responseBody.size();
+    qDebug().noquote() << "[fillAvailableServices] Response body (raw):" << responseBody.left(2048);
+
     if (errorCode == ErrorCode::NoError) {
         if (!responseBody.contains(apiDefs::key::services.data())) {
+            qDebug().noquote() << "[fillAvailableServices] Response missing 'services' key";
             errorCode = ErrorCode::ApiServicesMissingError;
         }
     }
 
     if (errorCode != ErrorCode::NoError) {
+        qDebug().noquote() << "[fillAvailableServices] Returning error:" << static_cast<int>(errorCode);
         return errorCode;
     }
 
     servicesData = QJsonDocument::fromJson(responseBody).object();
+    qDebug().noquote() << "[fillAvailableServices] Parsed services JSON:" << QJsonDocument(servicesData).toJson(QJsonDocument::Compact);
 
 #if defined(Q_OS_IOS) || defined(MACOS_NE)
     mergeStoreKitPricesIntoPremiumPlans(servicesData);
