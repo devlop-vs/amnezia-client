@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 335 335">
+  <defs>
+    <clipPath id="planetClip">
+      <circle cx="167.5" cy="167.5" r="167.5"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#planetClip)">
+    <image href="earth-background.png" width="335" height="335" preserveAspectRatio="xMidYMid slice"/>
+  </g>
+  <!-- Atmospheric rim -->
+  <circle cx="167.5" cy="167.5" r="166" fill="none" stroke="rgba(100,180,255,0.2)" stroke-width="3"/>
+</svg>

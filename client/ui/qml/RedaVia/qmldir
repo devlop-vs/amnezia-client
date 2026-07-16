@@ -1,0 +1,17 @@
+module RedaVia
+singleton Theme 1.0 Theme.qml
+StatusBar 1.0 StatusBar.qml
+BottomTabBar 1.0 BottomTabBar.qml
+TopBar 1.0 TopBar.qml
+PrimaryButton 1.0 PrimaryButton.qml
+PowerButton 1.0 PowerButton.qml
+ServerCard 1.0 ServerCard.qml
+SpeedStats 1.0 SpeedStats.qml
+HomeDisconnected 1.0 HomeDisconnected.qml
+HomeConnected 1.0 HomeConnected.qml
+LocationsPage 1.0 LocationsPage.qml
+LoginPage 1.0 LoginPage.qml
+SubscriptionPage 1.0 SubscriptionPage.qml
+ProfilePage 1.0 ProfilePage.qml
+TrafficDashboard 1.0 TrafficDashboard.qml
+OnboardingPage 1.0 OnboardingPage.qml

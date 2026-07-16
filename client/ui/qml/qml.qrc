@@ -144,6 +144,27 @@
         <file>Components/AwgTextField.qml</file>
         <file>Pages2/PageSettingsApiSubscriptionKey.qml</file>
         <file>Components/SmartScroll.qml</file>
+
+        <file>RedaVia/qmldir</file>
+        <file>RedaVia/main.qml</file>
+        <file>RedaVia/Theme.qml</file>
+        <file>RedaVia/StatusBar.qml</file>
+        <file>RedaVia/BottomTabBar.qml</file>
+        <file>RedaVia/TopBar.qml</file>
+        <file>RedaVia/PrimaryButton.qml</file>
+        <file>RedaVia/PowerButton.qml</file>
+        <file>RedaVia/ServerCard.qml</file>
+        <file>RedaVia/SpeedStats.qml</file>
+        <file>RedaVia/HomeDisconnected.qml</file>
+        <file>RedaVia/HomeConnected.qml</file>
+        <file>RedaVia/LocationsPage.qml</file>
+        <file>RedaVia/LoginPage.qml</file>
+        <file>RedaVia/OnboardingPage.qml</file>
+        <file>RedaVia/ProfilePage.qml</file>
+        <file>RedaVia/SubscriptionPage.qml</file>
+        <file>RedaVia/TrafficDashboard.qml</file>
+        <file>RedaVia/assets/earth-background.png</file>
+        <file>RedaVia/assets/planet-clip.svg</file>
     </qresource>
 </RCC>
 
