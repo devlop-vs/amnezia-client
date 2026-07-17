@@ -97,7 +97,8 @@ PageType {
             var pageName = tabBarStackView.currentItem.objectName
             if ((pageName === PageController.getPagePath(PageEnum.PageShare)) ||
                     (pageName === PageController.getPagePath(PageEnum.PageSettings)) ||
-                    (pageName === PageController.getPagePath(PageEnum.PageSetupWizardConfigSource))) {
+                    (pageName === PageController.getPagePath(PageEnum.PageSetupWizardConfigSource)) ||
+                    (pageName === "PageRedaVia")) {
                 PageController.goToPageHome()
             } else {
                 PageController.closePage()
@@ -325,8 +326,8 @@ PageType {
 
         topPadding: 8
         bottomPadding: 8 + PageController.safeAreaBottomMargin
-        leftPadding: 96
-        rightPadding: 96
+        leftPadding: 72
+        rightPadding: 72
 
         height: visible ? homeTabButton.implicitHeight + tabBar.topPadding + tabBar.bottomPadding : 0
 
@@ -412,14 +413,28 @@ PageType {
         }
 
         TabImageButtonType {
+            id: redaViaTabButton
+            objectName: "redaViaTabButton"
+
+            isSelected: tabBar.currentIndex === 3
+            image: "qrc:/images/controls/globe-2.svg"
+            clickedFunc: function () {
+                tabBarStackView.clear(StackView.Immediate)
+                tabBarStackView.replace("qrc:/ui/qml/Pages2/PageRedaVia.qml",
+                    { "objectName" : "PageRedaVia" }, StackView.Immediate)
+                tabBar.currentIndex = 3
+            }
+        }
+
+        TabImageButtonType {
             id: plusTabButton
             objectName: "plusTabButton"
 
-            isSelected: tabBar.currentIndex === 3
+            isSelected: tabBar.currentIndex === 4
             image: "qrc:/images/controls/plus.svg"
             clickedFunc: function () {
                 tabBarStackView.goToTabBarPage(PageEnum.PageSetupWizardConfigSource)
-                tabBar.currentIndex = 3
+                tabBar.currentIndex = 4
             }
         }
     }

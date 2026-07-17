@@ -86,6 +86,8 @@
         <file>Pages2/PageProtocolXrayXmuxSettings.qml</file>
         <file>Pages2/PageProtocolXrayXPaddingSettings.qml</file>
         <file>Pages2/PageProtocolXrayXPaddingBytesSettings.qml</file>
+        <file>Pages2/PageRedaVia.qml</file>
+        <file>Pages2/PageStartRedaVia.qml</file>
         <file>Controls2/MinMaxRowType.qml</file>
 
         <file>Pages2/PageServiceDnsSettings.qml</file>

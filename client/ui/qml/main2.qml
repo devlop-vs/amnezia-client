@@ -160,8 +160,8 @@ Window  {
         }
     }
 
-    PageStart {
-        objectName: "pageStart"
+    PageStartRedaVia {
+        objectName: "pageStartRedaVia"
         width: root.width
         height: root.height
     }
