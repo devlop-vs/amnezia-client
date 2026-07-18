@@ -12,6 +12,15 @@ Rectangle {
 
     signal menuItemClicked(string item)
 
+    onMenuItemClicked: function(item) {
+        if (item === "Account") {
+            var sv = root.StackView.view
+            if (sv) {
+                sv.push("qrc:/ui/qml/RedaVia/AccessPage.qml")
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -40,7 +49,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "SW"
+                    text: AuthController.isLoggedIn ? AuthController.userEmail.charAt(0).toUpperCase() : "?"
                     font { family: Theme.fontFamily; pixelSize: 27; bold: true }
                     color: Theme.textPrimary
                 }
@@ -50,7 +59,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 16
-            text: "Simon Woo"
+            text: AuthController.isLoggedIn ? AuthController.userEmail.split("@")[0] : "Guest"
             font { family: Theme.fontFamily; pixelSize: 21; weight: Font.DemiBold }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -59,7 +68,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 6
-            text: "premium@redavia.app"
+            text: AuthController.isLoggedIn ? AuthController.userEmail : "Sign in to your account"
             font { family: Theme.fontFamily; pixelSize: 13 }
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter

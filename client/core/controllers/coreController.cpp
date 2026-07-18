@@ -1,6 +1,7 @@
 #include "coreController.h"
 
 #include <QDirIterator>
+#include <QNetworkAccessManager>
 #include <QTranslator>
 #include <QTimer>
 
@@ -234,6 +235,9 @@ void CoreController::initControllers()
 
     m_updateUiController = new UpdateUiController(m_updateController, this);
     setQmlContextProperty("UpdateController", m_updateUiController);
+
+    m_authController = new AuthController(m_settings, new QNetworkAccessManager(this), this);
+    setQmlContextProperty("AuthController", m_authController);
 }
 
 void CoreController::initAndroidController()
@@ -256,6 +260,11 @@ void CoreController::initAndroidController()
         __android_log_print(ANDROID_LOG_WARN, "AmneziaQt", "AndroidController::installedAppImage OK");
         m_engine->addImageProvider(QLatin1String("installedAppImage"), new InstalledAppsImageProvider);
     }
+
+    connect(AndroidController::instance(), &AndroidController::oauthCallbackReceived,
+            m_authController, [this](const QString &url) {
+                m_authController->handleDeepLink(QUrl(url));
+            });
 #endif
 }
 
@@ -343,6 +352,11 @@ void CoreController::setQmlRoot()
 PageController* CoreController::pageController() const
 {
     return m_pageController;
+}
+
+AuthController* CoreController::authController() const
+{
+    return m_authController;
 }
 
 void CoreController::openConnectionByIndex(int serverIndex)

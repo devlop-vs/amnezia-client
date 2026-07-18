@@ -29,6 +29,7 @@
 #include "ui/controllers/updateUiController.h"
 #include "ui/controllers/api/servicesCatalogUiController.h"
 #include "ui/controllers/networkReachabilityController.h"
+#include "ui/controllers/authController.h"
 
 #include "core/controllers/serversController.h"
 #include "core/controllers/selfhosted/usersController.h"
@@ -94,6 +95,7 @@ public:
                             bool skipPlatformControllerInit = false);
 
     PageController* pageController() const;
+    AuthController* authController() const;
     void setQmlRoot();
 
     void openConnectionByIndex(int serverIndex);
@@ -175,6 +177,8 @@ private:
     AllowedDnsUiController* m_allowedDnsUiController;
     LanguageUiController* m_languageUiController;
     UpdateUiController* m_updateUiController;
+
+    AuthController* m_authController;
 
     SubscriptionUiController* m_subscriptionUiController;
     ApiNewsUiController* m_apiNewsUiController;

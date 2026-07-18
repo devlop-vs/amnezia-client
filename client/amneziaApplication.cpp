@@ -7,20 +7,23 @@
 #include <QMimeData>
 #include <QQuickItem>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QResource>
 #include <QStandardPaths>
 #include <QTextDocument>
 #include <QTimer>
 #include <QTranslator>
 #include <QEvent>
+#include <QFileOpenEvent>
 #include <QDir>
+#ifdef Q_OS_WIN
 #include <QSettings>
-#include <QtQuick/QQuickWindow>  
-#include <QWindow>     
+#endif
 
 #include "core/protocols/qmlRegisterProtocols.h"
 #include "logger.h"
 #include "ui/controllers/qml/pageController.h"
+#include "ui/controllers/authController.h"
 #include "ui/models/installedAppsModel.h"
 #include "version.h"
 
@@ -159,6 +162,11 @@ void AmneziaApplication::init()
 
     m_coreController->setQmlRoot();
 
+    // Register amnezia:// URL scheme for OAuth callback
+#ifdef Q_OS_WIN
+    registerWindowsUrlScheme();
+#endif
+
 #ifdef Q_OS_WIN //TODO
     if (m_parser.isSet(m_optAutostart))
         m_coreController->pageController()->showOnStartup();
@@ -293,6 +301,25 @@ bool AmneziaApplication::eventFilter(QObject *watched, QEvent *event)
     return QObject::eventFilter(watched, event);
 }
 
+bool AmneziaApplication::event(QEvent *event)
+{
+    if (event->type() == QEvent::FileOpen) {
+        QFileOpenEvent *fileOpenEvent = static_cast<QFileOpenEvent *>(event);
+        QUrl url = fileOpenEvent->url();
+        qDebug() << "AmneziaApplication::event FileOpen URL:" << url.toString();
+        if (url.scheme() == "amnezia") {
+            if (m_coreController && m_coreController->authController()) {
+                qDebug() << "Dispatching OAuth deep link to AuthController";
+                m_coreController->authController()->handleDeepLink(url);
+                return true;
+            } else {
+                qWarning() << "OAuth deep link received but CoreController/AuthController not ready";
+            }
+        }
+    }
+    return AMNEZIA_BASE_CLASS::event(event);
+}
+
 void AmneziaApplication::forceQuit()
 {
     m_forceQuit = true;
@@ -313,3 +340,14 @@ QClipboard *AmneziaApplication::getClipboard()
 {
     return this->clipboard();
 }
+
+#ifdef Q_OS_WIN
+void AmneziaApplication::registerWindowsUrlScheme()
+{
+    QSettings reg("HKEY_CURRENT_USER\\Software\\Classes\\amnezia", QSettings::NativeFormat);
+    reg.setValue("Default", "AmneziaVPN OAuth");
+    reg.setValue("URL Protocol", "");
+    reg.setValue("shell/open/command/Default",
+                 QString("\"%1\" --import \"%2\"").arg(applicationFilePath(), "%1"));
+}
+#endif

@@ -99,6 +99,7 @@ bool AndroidController::initialize()
         {"onFileOpened", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onFileOpened)},
         {"onConfigImported", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onConfigImported)},
         {"onAuthResult", "(Z)V", reinterpret_cast<void *>(onAuthResult)},
+        {"onOAuthCallback", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onOAuthCallback)},
         {"decodeQrCode", "(Ljava/lang/String;)Z", reinterpret_cast<bool *>(decodeQrCode)},
         {"onImeInsetsChanged", "(I)V", reinterpret_cast<void *>(onImeInsetsChanged)},
         {"onSystemBarsInsetsChanged", "(II)V", reinterpret_cast<void *>(onSystemBarsInsetsChanged)},
@@ -531,6 +532,14 @@ void AndroidController::onAuthResult(JNIEnv *env, jobject thiz, jboolean result)
     Q_UNUSED(thiz);
 
     emit AndroidController::instance()->authenticationResult(result);
+}
+
+// static
+void AndroidController::onOAuthCallback(JNIEnv *env, jobject thiz, jstring url)
+{
+    Q_UNUSED(thiz);
+
+    emit AndroidController::instance()->oauthCallbackReceived(AndroidUtils::convertJString(env, url));
 }
 
 // static

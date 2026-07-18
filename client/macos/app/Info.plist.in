@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>${QT_INTERNAL_DOLLAR_VAR}{PRODUCT_NAME}</string>
+	<string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
 	<key>CFBundleExecutable</key>
 	<string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
 	<key>CFBundleIdentifier</key>
@@ -29,6 +29,17 @@
         <key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.amnezia.AmneziaVPN.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>amnezia</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>${MACOSX_DEPLOYMENT_TARGET}</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

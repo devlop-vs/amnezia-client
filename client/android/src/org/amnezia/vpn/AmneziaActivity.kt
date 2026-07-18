@@ -258,6 +258,18 @@ class AmneziaActivity : QtActivity() {
                 }
             }
         }
+
+        // Handle amnezia://oauth/callback deep link
+        if (intent.action == Intent.ACTION_VIEW) {
+            intent.data?.let { uri ->
+                if (uri.scheme == "amnezia" && uri.host == "oauth") {
+                    mainScope.launch {
+                        qtInitialized.await()
+                        QtAndroidController.onOAuthCallback(uri.toString())
+                    }
+                }
+            }
+        }
     }
 
     override fun onStart() {

@@ -71,8 +71,12 @@ private:
     QThread m_vpnConnectionThread;
 
     QNetworkAccessManager *m_nam;
+#ifdef Q_OS_WIN
+    void registerWindowsUrlScheme();
+#endif
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    bool event(QEvent *event) override;
 };
 
 #endif // AMNEZIA_APPLICATION_H

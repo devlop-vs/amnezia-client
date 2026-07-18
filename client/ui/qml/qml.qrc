@@ -162,6 +162,7 @@
         <file>RedaVia/LocationsPage.qml</file>
         <file>RedaVia/LoginPage.qml</file>
         <file>RedaVia/OnboardingPage.qml</file>
+        <file>RedaVia/AccessPage.qml</file>
         <file>RedaVia/ProfilePage.qml</file>
         <file>RedaVia/SubscriptionPage.qml</file>
         <file>RedaVia/TrafficDashboard.qml</file>
