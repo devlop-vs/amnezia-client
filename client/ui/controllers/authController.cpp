@@ -192,6 +192,7 @@ void AuthController::fetchUserInfo(const QString &accessToken)
         m_settings->setValue("Auth/userEmail", m_userEmail);
 
         emit userInfoChanged();
+        emit loginStateChanged();
         emit loginSuccess(m_userEmail);
     });
 }
