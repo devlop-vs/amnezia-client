@@ -167,6 +167,7 @@
         <file>RedaVia/SubscriptionPage.qml</file>
         <file>RedaVia/TrafficDashboard.qml</file>
         <file>RedaVia/assets/earth-background.png</file>
+        <file>RedaVia/assets/power-icon.svg</file>
         <file>RedaVia/assets/planet-clip.svg</file>
     </qresource>
 </RCC>

@@ -38,10 +38,12 @@ private:
     void exchangeCodeForToken(const QString &code, const QString &state, const QString &codeVerifier);
     void fetchUserInfo(const QString &accessToken);
     QString generateCodeVerifier();
+    QString generateState();
 
     SecureQSettings *m_settings;
     QNetworkAccessManager *m_nam;
 
+    QString m_oauthState;
     QString m_codeVerifier;
     QString m_accessToken;
     QString m_refreshToken;
@@ -51,7 +53,6 @@ private:
     static const QString kAuthBaseUrl;
     static const QString kClientId;
     static const QString kRedirectUri;
-    static const QString kState;
 };
 
 #endif // AUTHCONTROLLER_H

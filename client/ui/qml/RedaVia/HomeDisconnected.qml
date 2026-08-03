@@ -18,7 +18,7 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        StatusBar { Layout.fillWidth: true }
+        //StatusBar { Layout.fillWidth: true }
 
         TopBar {
             Layout.topMargin: 10

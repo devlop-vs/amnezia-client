@@ -13,7 +13,6 @@
 const QString AuthController::kAuthBaseUrl = QStringLiteral("http://104.160.47.217:38080");
 const QString AuthController::kClientId = QStringLiteral("amnezia-vpn-client");
 const QString AuthController::kRedirectUri = QStringLiteral("amnezia://oauth/callback");
-const QString AuthController::kState = QStringLiteral("1001");
 
 AuthController::AuthController(SecureQSettings *settings, QNetworkAccessManager *nam, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(nam)
@@ -52,13 +51,20 @@ QString AuthController::generateCodeVerifier()
     return verifier;
 }
 
+QString AuthController::generateState()
+{
+    const quint32 value = QRandomGenerator::global()->bounded(0u, 100000u);
+    return QStringLiteral("%1").arg(value, 5, 10, QLatin1Char('0'));
+}
+
 QString AuthController::getLoginUrl()
 {
+    m_oauthState = generateState();
     m_codeVerifier = generateCodeVerifier();
 
-    QUrl url(kAuthBaseUrl + "/static/native-callback-login.html");
+    QUrl url(kAuthBaseUrl + "/static_reda/account.html");
     QUrlQuery query;
-    query.addQueryItem("state", kState);
+    query.addQueryItem("state", m_oauthState);
     query.addQueryItem("client_id", kClientId);
     query.addQueryItem("redirect_uri", kRedirectUri);
     query.addQueryItem("code_verifier", m_codeVerifier);
@@ -79,10 +85,27 @@ void AuthController::handleOAuthCallback(const QString &urlString)
     QString codeVerifier = query.queryItemValue("code_verifier");
 
     qDebug() << "OAuth callback parsed - code:" << code << "state:" << state
-             << "codeVerifier from URL:" << codeVerifier << "stored verifier:" << m_codeVerifier;
+             << "codeVerifier from URL:" << codeVerifier << "stored verifier:" << m_codeVerifier
+             << "stored state:" << m_oauthState;
 
     if (code.isEmpty()) {
         emit loginFailed("No authorization code received");
+        return;
+    }
+
+    if (state.isEmpty()) {
+        emit loginFailed("No OAuth state received");
+        return;
+    }
+
+    if (m_oauthState.isEmpty()) {
+        emit loginFailed("No OAuth state stored for validation");
+        return;
+    }
+
+    if (state != m_oauthState) {
+        qWarning() << "OAuth state mismatch - received:" << state << "expected:" << m_oauthState;
+        emit loginFailed("OAuth state mismatch");
         return;
     }
 

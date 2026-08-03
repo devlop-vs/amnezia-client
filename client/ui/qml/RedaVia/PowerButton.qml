@@ -50,11 +50,14 @@ Item {
             Behavior on color { ColorAnimation { duration: 400 } }
         }
 
-        Text {
+        Image {
             anchors.centerIn: parent
-            text: "⏻"
-            font { family: Theme.fontFamily; pixelSize: 58 }
-            color: Theme.textPrimary
+            width: 58
+            height: 58
+            source: "qrc:/ui/qml/RedaVia/assets/power-icon.svg"
+            fillMode: Image.PreserveAspectFit
+            sourceSize.width: width
+            sourceSize.height: height
         }
     }
 
