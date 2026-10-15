@@ -6,13 +6,36 @@ import "../RedaVia" as RedaVia
 Item {
     id: root
 
+    property string currentCountryCode: ""
+    property string currentCountryName: ""
+    property string currentProtocolName: ""
+
+    function refreshCurrentServer() {
+        root.currentCountryCode = ServersUiController.defaultServerApiCountryCode
+        root.currentCountryName = ServersUiController.defaultServerApiCountryName
+        root.currentProtocolName = ServersUiController.defaultServerApiServiceProtocol
+    }
+
+    Component.onCompleted: root.refreshCurrentServer()
+
+    Connections {
+        target: ServersUiController
+
+        function onDefaultServerIdChanged(serverId) {
+            root.refreshCurrentServer()
+        }
+    }
+
     RedaVia.HomeDisconnected {
         id: homeDisconnected
         anchors.fill: parent
-        visible: !homeConnected.visible
+        visible: !ConnectionController.isConnected
+        countryCode: root.currentCountryCode
+        countryName: root.currentCountryName
+        protocolName: root.currentProtocolName
 
         onConnectPressed: {
-            homeConnected.visible = true
+            ConnectionController.connectButtonClicked()
         }
         onServerChangeRequested: {
             locationsLoader.active = true
@@ -22,10 +45,13 @@ Item {
     RedaVia.HomeConnected {
         id: homeConnected
         anchors.fill: parent
-        visible: false
+        visible: ConnectionController.isConnected
+        countryCode: root.currentCountryCode
+        countryName: root.currentCountryName
+        protocolName: root.currentProtocolName
 
         onDisconnectPressed: {
-            homeConnected.visible = false
+            ConnectionController.closeConnection()
         }
     }
 
@@ -37,7 +63,10 @@ Item {
 
         Connections {
             target: locationsLoader.item
-            function onServerSelected(country) {
+            function onServerSelected(countryCode, countryName, protocolName) {
+                root.currentCountryCode = countryCode
+                root.currentCountryName = countryName
+                root.currentProtocolName = protocolName
                 locationsLoader.active = false
             }
         }

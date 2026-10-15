@@ -81,6 +81,8 @@ public:
     void setLogEnableDate(const QDateTime &date);
     
     QString getInstallationUuid(bool createIfNotExists) const;
+    QString getAuthUserId() const;
+    QString getAuthUserEmail() const;
     QStringList getReadNewsIds() const;
     void setReadNewsIds(const QStringList &ids);
 

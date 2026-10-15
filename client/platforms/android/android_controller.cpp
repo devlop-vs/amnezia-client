@@ -24,11 +24,14 @@ AndroidController::AndroidController() : QObject()
     connect(this, &AndroidController::status, this,
             [this](AndroidController::ConnectionState state) {
                 qDebug() << "Android event: status =" << textConnectionState(state);
-                if (isWaitingStatus) {
-                    qDebug() << "Initialization by service status";
-                    isWaitingStatus = false;
-                    emit initConnectionState(convertState(state));
-                }
+                // STATUS is an explicit snapshot requested from the Android service
+                // during startup or after the activity returns to the foreground.
+                // Always treat it as authoritative. Relying on activityResumed's
+                // queued handler to set isWaitingStatus first creates a race where
+                // the snapshot can be handled as an ordinary protocol event and the
+                // C++ VPN facade is not restored/synchronised.
+                isWaitingStatus = false;
+                emit initConnectionState(convertState(state));
             },
             Qt::QueuedConnection);
 
@@ -73,6 +76,14 @@ AndroidController::AndroidController() : QObject()
             emit importConfigFromOutside(config);
         },
         Qt::QueuedConnection);
+
+    connect(
+        this, &AndroidController::activityResumed, this,
+        [this]() {
+            qDebug() << "Android event: activity resumed, waiting for fresh VPN status";
+            isWaitingStatus = true;
+        },
+        Qt::QueuedConnection);
 }
 
 AndroidController *AndroidController::instance()
@@ -104,7 +115,9 @@ bool AndroidController::initialize()
         {"onImeInsetsChanged", "(I)V", reinterpret_cast<void *>(onImeInsetsChanged)},
         {"onSystemBarsInsetsChanged", "(II)V", reinterpret_cast<void *>(onSystemBarsInsetsChanged)},
         {"onActivityPaused", "()V", reinterpret_cast<void *>(onActivityPaused)},
-        {"onActivityResumed", "()V", reinterpret_cast<void *>(onActivityResumed)}
+        {"onActivityResumed", "()V", reinterpret_cast<void *>(onActivityResumed)},
+        {"onGooglePlayProductDetails", "(ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V", reinterpret_cast<void *>(onGooglePlayProductDetails)},
+        {"onGooglePlayPurchaseCompleted", "(ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void *>(onGooglePlayPurchaseCompleted)}
     };
 
     QJniEnvironment env;
@@ -258,6 +271,20 @@ void AndroidController::minimizeApp()
     callActivityMethod("minimizeApp", "()V");
 }
 
+bool AndroidController::startOAuthLogin(const QUrl &url, QString *errorMessage)
+{
+    const jboolean started = callActivityMethod<jboolean>(
+        "startOAuthLogin",
+        "(Ljava/lang/String;)Z",
+        QJniObject::fromString(url.toString()).object<jstring>());
+
+    if (!started && errorMessage) {
+        *errorMessage = QStringLiteral("Failed to launch Android OAuth login");
+    }
+
+    return started;
+}
+
 QJsonArray AndroidController::getAppList()
 {
     QJniObject appList = callActivityMethod<jstring>("getAppList", "()Ljava/lang/String;");
@@ -327,6 +354,57 @@ bool AndroidController::requestAuthentication()
 void AndroidController::sendTouch(float x, float y)
 {
     callActivityMethod("sendTouch", "(FF)V", x, y);
+}
+
+void AndroidController::requestProductDetails(const QString &productId, const QString &productType,
+                                              const QString &googlePlayBasePlanId)
+{
+    callActivityMethod("requestProductDetails", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                       QJniObject::fromString(productId).object<jstring>(),
+                       QJniObject::fromString(productType).object<jstring>(),
+                       QJniObject::fromString(googlePlayBasePlanId).object<jstring>());
+}
+
+bool AndroidController::purchaseProduct(const QString &productId, const QString &productType,
+                                        const QString &googlePlayBasePlanId, const QString &obfuscatedAccountId,
+                                        QString *purchaseToken,
+                                        QString *resolvedProductId, QString *resolvedProductType,
+                                        QString *orderId, QString *errorMessage)
+{
+    QEventLoop wait;
+    bool result = false;
+
+    connect(this, &AndroidController::googlePlayPurchaseCompleted, this,
+            [&](bool success, const QString &token, const QString &callbackProductId,
+                const QString &callbackProductType, const QString &callbackOrderId,
+                const QString &callbackError) {
+                result = success;
+                if (purchaseToken) {
+                    *purchaseToken = token;
+                }
+                if (resolvedProductId) {
+                    *resolvedProductId = callbackProductId;
+                }
+                if (resolvedProductType) {
+                    *resolvedProductType = callbackProductType;
+                }
+                if (orderId) {
+                    *orderId = callbackOrderId;
+                }
+                if (errorMessage) {
+                    *errorMessage = callbackError;
+                }
+                wait.quit();
+            },
+            static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+
+    callActivityMethod("purchaseProduct", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                       QJniObject::fromString(productId).object<jstring>(),
+                       QJniObject::fromString(productType).object<jstring>(),
+                       QJniObject::fromString(googlePlayBasePlanId).object<jstring>(),
+                       QJniObject::fromString(obfuscatedAccountId).object<jstring>());
+    wait.exec();
+    return result;
 }
 
 // Moving log processing to the Android side
@@ -409,6 +487,27 @@ void AndroidController::messageHandler(QtMsgType type, const QMessageLogContext 
     QJniObject::callStaticMethod<void>(log, logMethod,
                                        QJniObject::fromString(TAG).object<jstring>(),
                                        QJniObject::fromString(formattedMessage).object<jstring>());
+}
+
+void AndroidController::onGooglePlayProductDetails(JNIEnv *env, jobject, jboolean success,
+                                                   jstring productId, jstring productType,
+                                                   jstring googlePlayBasePlanId,
+                                                   jstring priceLabel, jstring subtitleLabel,
+                                                   jstring monthlyPriceLabel, jlong monthlyPriceAmountMicros,
+                                                   jstring errorString)
+{
+    Q_UNUSED(env)
+
+    emit instance()->googlePlayProductDetailsReceived(
+        static_cast<bool>(success),
+        QJniObject(productId).toString(),
+        QJniObject(productType).toString(),
+        QJniObject(googlePlayBasePlanId).toString(),
+        QJniObject(priceLabel).toString(),
+        QJniObject(subtitleLabel).toString(),
+        QJniObject(monthlyPriceLabel).toString(),
+        static_cast<qlonglong>(monthlyPriceAmountMicros),
+        QJniObject(errorString).toString());
 }
 
 void AndroidController::qtAndroidControllerInitialized()
@@ -507,6 +606,7 @@ void AndroidController::onStatisticsUpdate(JNIEnv *env, jobject thiz, jlong rxBy
     Q_UNUSED(env);
     Q_UNUSED(thiz);
 
+    qDebug() << "Android event: statistics update rx=" << rxBytes << "tx=" << txBytes;
     emit AndroidController::instance()->statisticsUpdated((quint64) rxBytes, (quint64) txBytes);
 }
 
@@ -585,6 +685,22 @@ void AndroidController::onActivityResumed(JNIEnv *env, jobject thiz)
     Q_UNUSED(thiz);
 
     emit AndroidController::instance()->activityResumed();
+}
+
+// static
+void AndroidController::onGooglePlayPurchaseCompleted(JNIEnv *env, jobject thiz, jboolean success,
+                                                      jstring purchaseToken, jstring productId,
+                                                      jstring productType, jstring orderId, jstring errorString)
+{
+    Q_UNUSED(thiz);
+
+    emit AndroidController::instance()->googlePlayPurchaseCompleted(
+        success,
+        AndroidUtils::convertJString(env, purchaseToken),
+        AndroidUtils::convertJString(env, productId),
+        AndroidUtils::convertJString(env, productType),
+        AndroidUtils::convertJString(env, orderId),
+        AndroidUtils::convertJString(env, errorString));
 }
 
 

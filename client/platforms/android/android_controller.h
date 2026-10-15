@@ -49,12 +49,18 @@ public:
     void setScreenshotsEnabled(bool enabled);
     void setNavigationBarColor(unsigned int color);
     void minimizeApp();
+    bool startOAuthLogin(const QUrl &url, QString *errorMessage = nullptr);
     QJsonArray getAppList();
     QPixmap getAppIcon(const QString &package, QSize *size, const QSize &requestedSize);
     bool isNotificationPermissionGranted();
     void requestNotificationPermission();
     bool requestAuthentication();
     void sendTouch(float x, float y);
+    void requestProductDetails(const QString &productId, const QString &productType, const QString &googlePlayBasePlanId);
+    bool purchaseProduct(const QString &productId, const QString &productType, const QString &googlePlayBasePlanId,
+                         const QString &obfuscatedAccountId,
+                         QString *purchaseToken, QString *resolvedProductId, QString *resolvedProductType,
+                         QString *orderId, QString *errorMessage = nullptr);
 
     static bool initLogging();
     static void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message);
@@ -78,6 +84,13 @@ signals:
     void systemBarsInsetsChanged(int navBarHeightDp, int statusBarHeightDp);
     void activityPaused();
     void activityResumed();
+    void googlePlayProductDetailsReceived(bool success, QString productId, QString productType,
+                                          QString googlePlayBasePlanId, QString priceLabel,
+                                          QString subtitleLabel, QString monthlyPriceLabel,
+                                          qlonglong monthlyPriceAmountMicros,
+                                          QString errorString);
+    void googlePlayPurchaseCompleted(bool success, QString purchaseToken, QString productId,
+                                     QString productType, QString orderId, QString errorString);
 
 private:
     bool isWaitingStatus = true;
@@ -111,6 +124,16 @@ private:
     static void onSystemBarsInsetsChanged(JNIEnv *env, jobject thiz, jint navBarHeightDp, jint statusBarHeightDp);
     static void onActivityPaused(JNIEnv *env, jobject thiz);
     static void onActivityResumed(JNIEnv *env, jobject thiz);
+    static void onGooglePlayProductDetails(JNIEnv *env, jobject thiz, jboolean success,
+                                           jstring productId, jstring productType,
+                                           jstring googlePlayBasePlanId,
+                                           jstring priceLabel, jstring subtitleLabel,
+                                           jstring monthlyPriceLabel, jlong monthlyPriceAmountMicros,
+                                           jstring errorString);
+    static void onGooglePlayPurchaseCompleted(JNIEnv *env, jobject thiz, jboolean success,
+                                              jstring purchaseToken, jstring productId,
+                                              jstring productType,
+                                              jstring orderId, jstring errorString);
 
     template <typename Ret, typename ...Args>
     static auto callActivityMethod(const char *methodName, const char *signature, Args &&...args);

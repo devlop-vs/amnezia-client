@@ -17,6 +17,8 @@ namespace configKey
     constexpr char isTrial[] = "is_trial";
     constexpr char serviceProtocol[] = "service_protocol";
     constexpr char storeProductId[] = "store_product_id";
+    constexpr char storeProductType[] = "store_product_type";
+    constexpr char googlePlayBasePlanId[] = "google_play_base_plan_id";
 }
 }
 
@@ -56,6 +58,10 @@ QVariant ApiSubscriptionPlansModel::data(const QModelIndex &index, int role) con
         return plan.serviceProtocol;
     case StoreProductIdRole:
         return plan.storeProductId;
+    case StoreProductTypeRole:
+        return plan.storeProductType;
+    case GooglePlayBasePlanIdRole:
+        return plan.googlePlayBasePlanId;
     default:
         return {};
     }
@@ -72,6 +78,8 @@ QHash<int, QByteArray> ApiSubscriptionPlansModel::roleNames() const
         { IsTrialRole, "isTrial" },
         { ServiceProtocolRole, "serviceProtocol" },
         { StoreProductIdRole, "storeProductId" },
+        { StoreProductTypeRole, "storeProductType" },
+        { GooglePlayBasePlanIdRole, "googlePlayBasePlanId" },
     };
 }
 
@@ -94,6 +102,8 @@ void ApiSubscriptionPlansModel::updateModel(const QJsonArray &arr)
         subscriptionPlan.isTrial = planObject.value(configKey::isTrial).toBool();
         subscriptionPlan.serviceProtocol = planObject.value(configKey::serviceProtocol).toString();
         subscriptionPlan.storeProductId = planObject.value(configKey::storeProductId).toString();
+        subscriptionPlan.storeProductType = planObject.value(configKey::storeProductType).toString();
+        subscriptionPlan.googlePlayBasePlanId = planObject.value(configKey::googlePlayBasePlanId).toString();
         m_subscriptionPlans.append(std::move(subscriptionPlan));
     }
     endResetModel();
@@ -104,6 +114,78 @@ void ApiSubscriptionPlansModel::clear()
     beginResetModel();
     m_subscriptionPlans.clear();
     endResetModel();
+}
+
+void ApiSubscriptionPlansModel::updatePriceLabel(const QString &storeProductId,
+                                                 const QString &storeProductType,
+                                                 const QString &googlePlayBasePlanId,
+                                                 const QString &priceLabel)
+{
+    if (storeProductId.isEmpty() || priceLabel.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_subscriptionPlans.size(); ++row) {
+        SubscriptionPlanItem &plan = m_subscriptionPlans[row];
+        if (plan.storeProductId != storeProductId) {
+            continue;
+        }
+        if (!storeProductType.isEmpty() && plan.storeProductType.compare(storeProductType, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        if (!googlePlayBasePlanId.isEmpty() && plan.googlePlayBasePlanId != googlePlayBasePlanId) {
+            continue;
+        }
+
+        if (plan.priceLabel == priceLabel) {
+            continue;
+        }
+
+        plan.priceLabel = priceLabel;
+        const QModelIndex modelIndex = index(row, 0);
+        emit dataChanged(modelIndex, modelIndex, { PriceLabelRole });
+    }
+}
+
+void ApiSubscriptionPlansModel::updatePricingDetails(const QString &storeProductId,
+                                                     const QString &storeProductType,
+                                                     const QString &googlePlayBasePlanId,
+                                                     const QString &priceLabel,
+                                                     const QString &subtitle)
+{
+    if (storeProductId.isEmpty()) {
+        return;
+    }
+
+    for (int row = 0; row < m_subscriptionPlans.size(); ++row) {
+        SubscriptionPlanItem &plan = m_subscriptionPlans[row];
+        if (plan.storeProductId != storeProductId) {
+            continue;
+        }
+        if (!storeProductType.isEmpty() && plan.storeProductType.compare(storeProductType, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        if (!googlePlayBasePlanId.isEmpty() && plan.googlePlayBasePlanId != googlePlayBasePlanId) {
+            continue;
+        }
+
+        QList<int> changedRoles;
+        if (!priceLabel.isEmpty() && plan.priceLabel != priceLabel) {
+            plan.priceLabel = priceLabel;
+            changedRoles.append(PriceLabelRole);
+        }
+        if (plan.subtitle != subtitle) {
+            plan.subtitle = subtitle;
+            changedRoles.append(SubtitleRole);
+        }
+
+        if (changedRoles.isEmpty()) {
+            continue;
+        }
+
+        const QModelIndex modelIndex = index(row, 0);
+        emit dataChanged(modelIndex, modelIndex, changedRoles);
+    }
 }
 
 QVariantMap ApiSubscriptionPlansModel::planAt(int row) const

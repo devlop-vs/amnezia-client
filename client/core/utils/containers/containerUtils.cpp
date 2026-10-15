@@ -8,11 +8,15 @@ using namespace amnezia;
 
 DockerContainer ContainerUtils::containerFromString(const QString &container)
 {
+    const QString normalizedContainer = container.trimmed().toLower();
+
     QMetaEnum metaEnum = QMetaEnum::fromType<DockerContainer>();
     for (int i = 0; i < metaEnum.keyCount(); ++i) {
         DockerContainer c = static_cast<DockerContainer>(i);
-        if (container == containerToString(c))
+        if (normalizedContainer == containerToString(c).toLower()
+                || normalizedContainer == containerTypeToString(c).toLower()) {
             return c;
+        }
     }
     return DockerContainer::None;
 }

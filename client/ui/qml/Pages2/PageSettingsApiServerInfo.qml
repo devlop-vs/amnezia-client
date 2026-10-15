@@ -17,6 +17,17 @@ import "../Components"
 PageType {
     id: root
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     property list<QtObject> labelsModel: [
         statusObject,
         endDateObject,
@@ -331,7 +342,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsApiSubscriptionKey)
+                    root.openPageCompatible(PageEnum.PageSettingsApiSubscriptionKey)
                     PageController.showBusyIndicator(true)
 
                     SubscriptionUiController.prepareVpnKeyExport(ServersUiController.processedServerId)
@@ -356,7 +367,7 @@ PageType {
 
                 clickedFunction: function() {
                     SubscriptionUiController.updateApiCountryModel()
-                    PageController.goToPage(PageEnum.PageSettingsApiNativeConfigs)
+                    root.openPageCompatible(PageEnum.PageSettingsApiNativeConfigs)
                 }
             }
 
@@ -376,7 +387,7 @@ PageType {
 
                 clickedFunction: function() {
                     SubscriptionUiController.updateApiDevicesModel()
-                    PageController.goToPage(PageEnum.PageSettingsApiDevices)
+                    root.openPageCompatible(PageEnum.PageSettingsApiDevices)
                 }
             }
 
@@ -392,7 +403,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsApiSupport)
+                    root.openPageCompatible(PageEnum.PageSettingsApiSupport)
                 }
             }
 
@@ -407,7 +418,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsApiInstructions)
+                    root.openPageCompatible(PageEnum.PageSettingsApiInstructions)
                 }
             }
 

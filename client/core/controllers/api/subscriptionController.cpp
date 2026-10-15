@@ -4,6 +4,8 @@
 #include <QDateTime>
 #include <QEventLoop>
 #include <QFutureWatcher>
+#include <QCryptographicHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPromise>
@@ -35,10 +37,17 @@
     #include <AmneziaVPN-Swift.h>
 #endif
 
+#ifdef Q_OS_ANDROID
+    #include "platforms/android/android_controller.h"
+#endif
+
 using namespace amnezia;
 
 namespace
 {
+constexpr int googlePlaySubscriptionRequestTimeoutMsecs = 60 * 1000;
+constexpr int configRequestTimeoutMsecs = 30 * 1000;
+
 QString getSubscriptionStatusForRenewal(const ApiConfig &apiConfig)
 {
     if (apiConfig.subscriptionExpiredByServer) {
@@ -55,6 +64,388 @@ QString getSubscriptionStatusForRenewal(const ApiConfig &apiConfig)
     }
 
     return QStringLiteral("active");
+}
+
+bool isWireGuardKeyExchangeProtocol(const QString &protocol)
+{
+    return protocol == configKey::awg || protocol == configKey::wireguard;
+}
+
+bool hasReusableProtocolIdentity(const QString &protocol, const SubscriptionController::ProtocolData &protocolData)
+{
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
+        return !protocolData.wireGuardClientPubKey.isEmpty() && !protocolData.wireGuardClientPrivKey.isEmpty();
+    }
+    if (protocol == configKey::vless) {
+        return !protocolData.xrayUuid.isEmpty();
+    }
+
+    return true;
+}
+
+SubscriptionController::ProtocolData storedProtocolIdentity(const ApiV2ServerConfig &apiV2, const QString &protocol);
+
+DockerContainer defaultContainerForServiceProtocol(const ApiV2ServerConfig &apiV2, const QString &protocol)
+{
+    const QString normalizedProtocol = protocol.trimmed().toLower();
+
+    if (normalizedProtocol == configKey::vless && apiV2.containers.contains(DockerContainer::Xray)) {
+        return DockerContainer::Xray;
+    }
+    if (normalizedProtocol == configKey::openvpn && apiV2.containers.contains(DockerContainer::OpenVpn)) {
+        return DockerContainer::OpenVpn;
+    }
+    if (normalizedProtocol == configKey::wireguard && apiV2.containers.contains(DockerContainer::WireGuard)) {
+        return DockerContainer::WireGuard;
+    }
+    if (normalizedProtocol == configKey::awg) {
+        if (apiV2.containers.contains(DockerContainer::Awg2)) {
+            return DockerContainer::Awg2;
+        }
+        if (apiV2.containers.contains(DockerContainer::Awg)) {
+            return DockerContainer::Awg;
+        }
+    }
+
+    return DockerContainer::None;
+}
+
+void alignDefaultContainerWithServiceProtocol(ApiV2ServerConfig &apiV2, const QString &protocol)
+{
+    const DockerContainer protocolContainer = defaultContainerForServiceProtocol(apiV2, protocol);
+    if (protocolContainer != DockerContainer::None) {
+        apiV2.defaultContainer = protocolContainer;
+        return;
+    }
+
+    if (apiV2.defaultContainer != DockerContainer::None && apiV2.containers.contains(apiV2.defaultContainer)) {
+        return;
+    }
+
+    for (auto it = apiV2.containers.constBegin(); it != apiV2.containers.constEnd(); ++it) {
+        const DockerContainer container = it.key();
+        if (ContainerUtils::containerService(container) == ServiceType::Vpn || container == DockerContainer::SSXray) {
+            apiV2.defaultContainer = container;
+            return;
+        }
+    }
+}
+
+bool protocolIdentitiesMatch(const QString &protocol, const SubscriptionController::ProtocolData &left,
+                             const SubscriptionController::ProtocolData &right)
+{
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
+        return left.wireGuardClientPrivKey == right.wireGuardClientPrivKey
+                && left.wireGuardClientPubKey == right.wireGuardClientPubKey
+                && left.wireGuardClientId == right.wireGuardClientId;
+    }
+    if (protocol == configKey::vless) {
+        return left.xrayUuid == right.xrayUuid;
+    }
+
+    return true;
+}
+
+SubscriptionController::ProtocolData protocolIdentityFromApiConfig(const ApiConfig &apiConfig, const QString &protocol)
+{
+    SubscriptionController::ProtocolData protocolData;
+
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
+        protocolData.wireGuardClientPrivKey = apiConfig.clientIdentity.wireGuardClientPrivKey;
+        protocolData.wireGuardClientPubKey = apiConfig.clientIdentity.wireGuardClientPubKey;
+        protocolData.wireGuardClientId = apiConfig.clientIdentity.wireGuardClientId.isEmpty()
+                ? apiConfig.clientIdentity.wireGuardClientPubKey
+                : apiConfig.clientIdentity.wireGuardClientId;
+    } else if (protocol == configKey::vless) {
+        protocolData.xrayUuid = apiConfig.clientIdentity.vlessUuid;
+    }
+
+    return protocolData;
+}
+
+void applyProtocolIdentityToApiConfig(ApiConfig &apiConfig, const QString &protocol,
+                                      const SubscriptionController::ProtocolData &protocolData)
+{
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
+        if (!protocolData.wireGuardClientPrivKey.isEmpty()) {
+            apiConfig.clientIdentity.wireGuardClientPrivKey = protocolData.wireGuardClientPrivKey;
+        }
+        if (!protocolData.wireGuardClientPubKey.isEmpty()) {
+            apiConfig.clientIdentity.wireGuardClientPubKey = protocolData.wireGuardClientPubKey;
+        }
+        apiConfig.clientIdentity.wireGuardClientId = protocolData.wireGuardClientId.isEmpty()
+                ? protocolData.wireGuardClientPubKey
+                : protocolData.wireGuardClientId;
+    } else if (protocol == configKey::vless && !protocolData.xrayUuid.isEmpty()) {
+        apiConfig.clientIdentity.vlessUuid = protocolData.xrayUuid;
+    }
+}
+
+SubscriptionController::ProtocolData reusableProtocolIdentity(const ApiV2ServerConfig &apiV2, const QString &protocol)
+{
+    const SubscriptionController::ProtocolData apiConfigIdentity = protocolIdentityFromApiConfig(apiV2.apiConfig, protocol);
+    const SubscriptionController::ProtocolData storedIdentity = storedProtocolIdentity(apiV2, protocol);
+
+    const bool hasApiConfigIdentity = hasReusableProtocolIdentity(protocol, apiConfigIdentity);
+    const bool hasStoredIdentity = hasReusableProtocolIdentity(protocol, storedIdentity);
+
+    if (hasApiConfigIdentity && hasStoredIdentity && !protocolIdentitiesMatch(protocol, apiConfigIdentity, storedIdentity)) {
+        qWarning().noquote() << "[API] Local protocol identity mismatch detected before /v1/config request;"
+                             << "using persisted client identity from api_config";
+    }
+
+    if (hasApiConfigIdentity) {
+        return apiConfigIdentity;
+    }
+
+    if (hasStoredIdentity) {
+        return storedIdentity;
+    }
+
+    return SubscriptionController::ProtocolData{};
+}
+
+SubscriptionController::ProtocolData storedProtocolIdentity(const ApiV2ServerConfig &apiV2, const QString &protocol)
+{
+    SubscriptionController::ProtocolData protocolData;
+
+    for (auto it = apiV2.containers.constBegin(); it != apiV2.containers.constEnd(); ++it) {
+        const ContainerConfig &containerConfig = it.value();
+
+        if (isWireGuardKeyExchangeProtocol(protocol)) {
+            const auto *awgConfig = containerConfig.getAwgProtocolConfig();
+            if (awgConfig && awgConfig->clientConfig.has_value()) {
+                protocolData.wireGuardClientPrivKey = awgConfig->clientConfig->clientPrivateKey;
+                protocolData.wireGuardClientPubKey = awgConfig->clientConfig->clientPublicKey;
+                protocolData.wireGuardClientId = awgConfig->clientConfig->clientId.isEmpty()
+                        ? protocolData.wireGuardClientPubKey
+                        : awgConfig->clientConfig->clientId;
+                if (hasReusableProtocolIdentity(protocol, protocolData)) {
+                    return protocolData;
+                }
+            }
+
+            const auto *wireGuardConfig = containerConfig.getWireGuardProtocolConfig();
+            if (wireGuardConfig && wireGuardConfig->clientConfig.has_value()) {
+                protocolData.wireGuardClientPrivKey = wireGuardConfig->clientConfig->clientPrivateKey;
+                protocolData.wireGuardClientPubKey = wireGuardConfig->clientConfig->clientPublicKey;
+                protocolData.wireGuardClientId = wireGuardConfig->clientConfig->clientId.isEmpty()
+                        ? protocolData.wireGuardClientPubKey
+                        : wireGuardConfig->clientConfig->clientId;
+                if (hasReusableProtocolIdentity(protocol, protocolData)) {
+                    return protocolData;
+                }
+            }
+        } else if (protocol == configKey::vless) {
+            const auto *xrayConfig = containerConfig.getXrayProtocolConfig();
+            if (xrayConfig && xrayConfig->clientConfig.has_value()) {
+                protocolData.xrayUuid = xrayConfig->clientConfig->id;
+                if (hasReusableProtocolIdentity(protocol, protocolData)) {
+                    return protocolData;
+                }
+            }
+        }
+    }
+
+    return protocolData;
+}
+
+QJsonObject withWireGuardIdentity(QJsonObject protocolConfig, const SubscriptionController::ProtocolData &protocolData)
+{
+    if (protocolData.wireGuardClientPrivKey.isEmpty() || protocolData.wireGuardClientPubKey.isEmpty()) {
+        return protocolConfig;
+    }
+
+    QJsonObject clientConfig = QJsonDocument::fromJson(protocolConfig.value(configKey::lastConfig).toString().toUtf8()).object();
+    clientConfig[configKey::clientPrivKey] = protocolData.wireGuardClientPrivKey;
+    clientConfig[configKey::clientPubKey] = protocolData.wireGuardClientPubKey;
+    clientConfig[configKey::clientId] = protocolData.wireGuardClientId.isEmpty()
+            ? protocolData.wireGuardClientPubKey
+            : protocolData.wireGuardClientId;
+    protocolConfig[configKey::lastConfig] = QString::fromUtf8(QJsonDocument(clientConfig).toJson(QJsonDocument::Compact));
+
+    return protocolConfig;
+}
+
+bool isVlessIdentityPlaceholder(const QString &id)
+{
+    const QString trimmedId = id.trimmed();
+    return trimmedId.isEmpty()
+            || trimmedId == QLatin1String("$XRAY_CLIENT_ID")
+            || trimmedId == QLatin1String("$VLESS_CLIENT_ID")
+            || trimmedId == QLatin1String("$VLESS_UUID")
+            || trimmedId == QLatin1String("$CLIENT_ID");
+}
+
+QJsonObject withVlessIdentityInNativeConfig(QJsonObject nativeConfig, const QString &xrayUuid)
+{
+    QJsonArray outbounds = nativeConfig.value(protocols::xray::outbounds).toArray();
+    if (outbounds.isEmpty()) {
+        return nativeConfig;
+    }
+
+    QJsonObject outbound = outbounds.at(0).toObject();
+    QJsonObject settings = outbound.value(protocols::xray::settings).toObject();
+    QJsonArray vnext = settings.value(protocols::xray::vnext).toArray();
+    if (vnext.isEmpty()) {
+        return nativeConfig;
+    }
+
+    QJsonObject vnextEntry = vnext.at(0).toObject();
+    QJsonArray users = vnextEntry.value(protocols::xray::users).toArray();
+    if (users.isEmpty()) {
+        return nativeConfig;
+    }
+
+    QJsonObject user = users.at(0).toObject();
+    if (!isVlessIdentityPlaceholder(user.value(protocols::xray::id).toString())) {
+        return nativeConfig;
+    }
+    user[protocols::xray::id] = xrayUuid;
+    users.replace(0, user);
+    vnextEntry[protocols::xray::users] = users;
+    vnext.replace(0, vnextEntry);
+    settings[protocols::xray::vnext] = vnext;
+    outbound[protocols::xray::settings] = settings;
+    outbounds.replace(0, outbound);
+    nativeConfig[protocols::xray::outbounds] = outbounds;
+
+    return nativeConfig;
+}
+
+QJsonObject withVlessIdentity(QJsonObject protocolConfig, const SubscriptionController::ProtocolData &protocolData)
+{
+    if (protocolData.xrayUuid.isEmpty()) {
+        return protocolConfig;
+    }
+
+    const QString lastConfig = protocolConfig.value(configKey::lastConfig).toString();
+    QJsonObject clientConfig = QJsonDocument::fromJson(lastConfig.toUtf8()).object();
+    if (clientConfig.contains(protocols::xray::outbounds) && !clientConfig.contains(configKey::config)) {
+        clientConfig = withVlessIdentityInNativeConfig(clientConfig, protocolData.xrayUuid);
+        protocolConfig[configKey::lastConfig] = QString::fromUtf8(QJsonDocument(clientConfig).toJson(QJsonDocument::Compact));
+        return protocolConfig;
+    }
+
+    const QString nativeConfigString = clientConfig.value(configKey::config).toString();
+    QJsonObject nativeConfig = QJsonDocument::fromJson(nativeConfigString.toUtf8()).object();
+    if (nativeConfig.contains(protocols::xray::outbounds)) {
+        nativeConfig = withVlessIdentityInNativeConfig(nativeConfig, protocolData.xrayUuid);
+        clientConfig[configKey::config] = QString::fromUtf8(QJsonDocument(nativeConfig).toJson(QJsonDocument::Compact));
+    }
+    if (isVlessIdentityPlaceholder(clientConfig.value(configKey::clientId).toString())) {
+        clientConfig[configKey::clientId] = protocolData.xrayUuid;
+    }
+    protocolConfig[configKey::lastConfig] = QString::fromUtf8(QJsonDocument(clientConfig).toJson(QJsonDocument::Compact));
+
+    return protocolConfig;
+}
+
+void persistProtocolIdentity(QJsonObject &serverConfigJson, const QString &protocol, const SubscriptionController::ProtocolData &protocolData)
+{
+    if (!hasReusableProtocolIdentity(protocol, protocolData)) {
+        return;
+    }
+
+    QJsonArray containers = serverConfigJson.value(configKey::containers).toArray();
+    for (int i = 0; i < containers.size(); ++i) {
+        QJsonObject container = containers.at(i).toObject();
+        bool updated = false;
+
+        if (isWireGuardKeyExchangeProtocol(protocol)) {
+            for (const QLatin1String protocolKey : { configKey::awg, configKey::wireguard }) {
+                if (container.contains(protocolKey)) {
+                    container[protocolKey] = withWireGuardIdentity(container.value(protocolKey).toObject(), protocolData);
+                    updated = true;
+                }
+            }
+        } else if (protocol == configKey::vless) {
+            for (const QLatin1String protocolKey : { configKey::xray, configKey::ssxray }) {
+                if (container.contains(protocolKey)) {
+                    container[protocolKey] = withVlessIdentity(container.value(protocolKey).toObject(), protocolData);
+                    updated = true;
+                }
+            }
+        }
+
+        if (updated) {
+            containers.replace(i, container);
+        }
+    }
+    serverConfigJson[configKey::containers] = containers;
+}
+
+QString findMatchingGooglePlayRenewalServerId(const SecureServersRepository *serversRepository,
+                                             const QString &serviceType)
+{
+    const QString trimmedServiceType = serviceType.trimmed();
+
+    const QString defaultServerId = serversRepository->defaultServerId();
+    if (!defaultServerId.isEmpty()) {
+        const auto defaultApiV2 = serversRepository->apiV2Config(defaultServerId);
+        if (defaultApiV2.has_value()
+                && defaultApiV2->apiConfig.isInAppPurchase
+                && (trimmedServiceType.isEmpty() || defaultApiV2->serviceType() == trimmedServiceType)) {
+            return defaultServerId;
+        }
+    }
+
+    for (int i = 0; i < serversRepository->serversCount(); ++i) {
+        const QString existingServerId = serversRepository->serverIdAt(i);
+        if (existingServerId == defaultServerId) {
+            continue;
+        }
+        const auto existingApiV2 = serversRepository->apiV2Config(existingServerId);
+        if (!existingApiV2.has_value()) {
+            continue;
+        }
+
+        if (!trimmedServiceType.isEmpty() && existingApiV2->serviceType() != trimmedServiceType) {
+            continue;
+        }
+        if (!existingApiV2->apiConfig.isInAppPurchase) {
+            continue;
+        }
+
+        return existingServerId;
+    }
+
+    return QString();
+}
+
+void refreshWireGuardIdentityInExistingServerConfigs(SecureServersRepository *serversRepository,
+                                                     const QString &serviceType,
+                                                     const SubscriptionController::ProtocolData &protocolData)
+{
+    if (!hasReusableProtocolIdentity(configKey::wireguard, protocolData)) {
+        return;
+    }
+
+    const QString trimmedServiceType = serviceType.trimmed();
+    int updatedServersCount = 0;
+    for (int i = 0; i < serversRepository->serversCount(); ++i) {
+        const QString serverId = serversRepository->serverIdAt(i);
+        const auto apiV2 = serversRepository->apiV2Config(serverId);
+        if (!apiV2.has_value()) {
+            continue;
+        }
+
+        if (!trimmedServiceType.isEmpty() && apiV2->serviceType() != trimmedServiceType) {
+            continue;
+        }
+
+        ApiV2ServerConfig syncedApiV2 = *apiV2;
+        applyProtocolIdentityToApiConfig(syncedApiV2.apiConfig, configKey::wireguard, protocolData);
+
+        QJsonObject syncedConfig = syncedApiV2.toJson();
+        persistProtocolIdentity(syncedConfig, configKey::wireguard, protocolData);
+        serversRepository->editServer(serverId, syncedConfig, serverConfigUtils::configTypeFromJson(syncedConfig));
+        ++updatedServersCount;
+    }
+
+    qInfo().noquote() << "[GPAY] Refreshed WireGuard/AWG identity in existing server configs;"
+                      << "updatedServersCount =" << updatedServersCount
+                      << "publicKey =" << protocolData.wireGuardClientPubKey;
 }
 }
 
@@ -86,6 +477,9 @@ QJsonObject SubscriptionController::GatewayRequestData::toJsonObject() const
     if (!serverCountryCode.isEmpty()) {
         obj[apiDefs::key::serverCountryCode] = serverCountryCode;
     }
+    if (!serverCityName.isEmpty()) {
+        obj[apiDefs::key::serverCityName] = serverCityName;
+    }
     if (!serviceType.isEmpty()) {
         obj[apiDefs::key::serviceType] = serviceType;
     }
@@ -98,13 +492,23 @@ QJsonObject SubscriptionController::GatewayRequestData::toJsonObject() const
     return obj;
 }
 
+QJsonObject SubscriptionController::authDataWithUserEmail(QJsonObject authData) const
+{
+    const QString email = m_appSettingsRepository->getAuthUserEmail();
+    if (!email.isEmpty()) {
+        authData[apiDefs::key::email] = email;
+    }
+    return authData;
+}
+
 SubscriptionController::ProtocolData SubscriptionController::generateProtocolData(const QString &protocol)
 {
     ProtocolData protocolData;
-    if (protocol == configKey::awg) {
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
         auto connData = WireguardConfigurator::genClientKeys();
         protocolData.wireGuardClientPubKey = connData.clientPubKey;
         protocolData.wireGuardClientPrivKey = connData.clientPrivKey;
+        protocolData.wireGuardClientId = connData.clientPubKey;
     } else if (protocol == configKey::vless) {
         protocolData.xrayUuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
@@ -112,25 +516,53 @@ SubscriptionController::ProtocolData SubscriptionController::generateProtocolDat
     return protocolData;
 }
 
-void SubscriptionController::appendProtocolDataToApiPayload(const QString &protocol, const ProtocolData &protocolData, QJsonObject &apiPayload)
+void SubscriptionController::appendProtocolDataToApiPayload(const QString &protocol, const ProtocolData &protocolData, QJsonObject &apiPayload) const
 {
-    if (protocol == configKey::awg) {
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
         apiPayload[apiDefs::key::publicKey] = protocolData.wireGuardClientPubKey;
     } else if (protocol == configKey::vless) {
         apiPayload[apiDefs::key::publicKey] = protocolData.xrayUuid;
     }
 }
 
+QString SubscriptionController::makeGooglePlayObfuscatedAccountId(const QString &userId) const
+{
+    const QString normalizedUserId = userId.trimmed();
+    if (normalizedUserId.isEmpty()) {
+        return QString();
+    }
+
+    const QByteArray seed = QStringLiteral("redavpn:user:%1").arg(normalizedUserId).toUtf8();
+    return QString::fromLatin1(QCryptographicHash::hash(seed, QCryptographicHash::Sha256).toHex());
+}
+
 ErrorCode SubscriptionController::extractServerConfigJsonFromResponse(const QByteArray &apiResponseBody, const QString &protocol, 
                                                                         const ProtocolData &protocolData, QJsonObject &serverConfigJson)
 {
-    QString data = QJsonDocument::fromJson(apiResponseBody).object().value(configKey::config).toString();
+    const QJsonObject responseObject = QJsonDocument::fromJson(apiResponseBody).object();
+
+    // The gateway can return configs in two formats:
+    // 1. Legacy/wrapped format: { "config": "vpn://<base64...>" }
+    // 2. Direct API v2 format: { "config_version": 2, "containers": [...], "api_config": {...} }
+    // Treating the direct format as a wrapped response makes `config` empty and
+    // incorrectly raises ApiConfigEmptyError (1102), even though the server sent
+    // a valid Xray/VLESS config.
+    if (responseObject.contains(configKey::configVersion)
+            && responseObject.contains(configKey::containers)) {
+        serverConfigJson = responseObject;
+        persistProtocolIdentity(serverConfigJson, protocol, protocolData);
+        return ErrorCode::NoError;
+    }
+
+    QString data = responseObject.value(configKey::config).toString();
 
     data.replace("vpn://", "");
     QByteArray ba = QByteArray::fromBase64(data.toUtf8(), QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
 
     if (ba.isEmpty()) {
-        qDebug() << "empty vpn key";
+        qDebug() << "empty vpn key"
+                 << "responseKeys=" << responseObject.keys()
+                 << "configValueLength=" << data.length();
         return ErrorCode::ApiConfigEmptyError;
     }
 
@@ -140,8 +572,10 @@ ErrorCode SubscriptionController::extractServerConfigJsonFromResponse(const QByt
     }
 
     QString configStr = ba;
-    if (protocol == configKey::awg) {
+    if (isWireGuardKeyExchangeProtocol(protocol)) {
         configStr.replace("$WIREGUARD_CLIENT_PRIVATE_KEY", protocolData.wireGuardClientPrivKey);
+    }
+    if (protocol == configKey::awg) {
         auto newServerConfig = QJsonDocument::fromJson(configStr.toUtf8()).object();
         auto containers = newServerConfig.value(configKey::containers).toArray();
         if (containers.isEmpty()) {
@@ -183,18 +617,27 @@ ErrorCode SubscriptionController::extractServerConfigJsonFromResponse(const QByt
     }
 
     serverConfigJson = QJsonDocument::fromJson(configStr.toUtf8()).object();
+    persistProtocolIdentity(serverConfigJson, protocol, protocolData);
     return ErrorCode::NoError;
 }
 
-void SubscriptionController::updateApiConfigInJson(QJsonObject &serverConfigJson, const QString &serviceType, 
+void SubscriptionController::updateApiConfigInJson(QJsonObject &serverConfigJson, const QString &serviceType,
                                                     const QString &serviceProtocol, const QString &userCountryCode,
-                                                    const QByteArray &apiResponseBody)
+                                                    const QByteArray &apiResponseBody,
+                                                    const QString &serverCountryCode,
+                                                    const QString &serverCountryName)
 {
     QJsonObject apiConfig = serverConfigJson.value(apiDefs::key::apiConfig).toObject();
     
     apiConfig[apiDefs::key::serviceType] = serviceType;
     apiConfig[apiDefs::key::serviceProtocol] = serviceProtocol;
     apiConfig[apiDefs::key::userCountryCode] = userCountryCode;
+    if (!serverCountryCode.isEmpty()) {
+        apiConfig[apiDefs::key::serverCountryCode] = serverCountryCode;
+    }
+    if (!serverCountryName.isEmpty()) {
+        apiConfig[apiDefs::key::serverCountryName] = serverCountryName;
+    }
     
     if (serverConfigJson.value(configKey::configVersion).toInt() == serverConfigUtils::ConfigSource::AmneziaGateway) {
         QJsonObject responseObj = QJsonDocument::fromJson(apiResponseBody).object();
@@ -209,9 +652,11 @@ void SubscriptionController::updateApiConfigInJson(QJsonObject &serverConfigJson
     serverConfigJson[apiDefs::key::apiConfig] = apiConfig;
 }
 
-ErrorCode SubscriptionController::executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody, bool isTestPurchase)
+ErrorCode SubscriptionController::executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody,
+                                                 bool isTestPurchase, int timeoutMsecs)
 {
-    GatewayController gatewayController(m_appSettingsRepository->getGatewayEndpoint(isTestPurchase), m_appSettingsRepository->isDevGatewayEnv(isTestPurchase), apiDefs::requestTimeoutMsecs,
+    GatewayController gatewayController(m_appSettingsRepository->getGatewayEndpoint(isTestPurchase), m_appSettingsRepository->isDevGatewayEnv(isTestPurchase),
+                                        timeoutMsecs > 0 ? timeoutMsecs : apiDefs::requestTimeoutMsecs,
                                         m_appSettingsRepository->isStrictKillSwitchEnabled(), m_appSettingsRepository);
     return gatewayController.post(endpoint, apiPayload, responseBody);
 }
@@ -226,15 +671,16 @@ ErrorCode SubscriptionController::importServiceFromGateway(const QString &userCo
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
+                                            "",
                                             serviceType,
                                             serviceProtocol,
-                                            QJsonObject() };
+                                            authDataWithUserEmail(QJsonObject()) };
 
     QJsonObject apiPayload = gatewayRequestData.toJsonObject();
     appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
 
     QByteArray responseBody;
-    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody);
+    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody, false, configRequestTimeoutMsecs);
 
     if (errorCode == ErrorCode::ApiCaptchaRequiredError) {
         QJsonDocument jsonDoc = QJsonDocument::fromJson(responseBody);
@@ -265,6 +711,8 @@ ErrorCode SubscriptionController::importServiceFromGateway(const QString &userCo
     }
 
     ApiV2ServerConfig apiV2ServerConfig = ApiV2ServerConfig::fromJson(serverConfigJson);
+    alignDefaultContainerWithServiceProtocol(apiV2ServerConfig, serviceProtocol);
+    applyProtocolIdentityToApiConfig(apiV2ServerConfig.apiConfig, serviceProtocol, protocolData);
     m_serversRepository->addServer(QString(), apiV2ServerConfig.toJson(),
                                    serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
     return ErrorCode::NoError;
@@ -283,6 +731,7 @@ ErrorCode SubscriptionController::importTrialFromGateway(const QString &userCoun
                                             m_appSettingsRepository->getAppLanguage().name().split("_").first(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
+                                            "",
                                             "",
                                             serviceType,
                                             serviceProtocol,
@@ -321,7 +770,10 @@ ErrorCode SubscriptionController::importTrialFromGateway(const QString &userCoun
         return ErrorCode::InternalError;
     }
 
+    persistProtocolIdentity(configObject, serviceProtocol, protocolData);
+
     ApiV2ServerConfig apiV2ServerConfig = ApiV2ServerConfig::fromJson(configObject);
+    applyProtocolIdentityToApiConfig(apiV2ServerConfig.apiConfig, serviceProtocol, protocolData);
     m_serversRepository->addServer(QString(), apiV2ServerConfig.toJson(),
                                    serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
     return ErrorCode::NoError;
@@ -337,6 +789,7 @@ ErrorCode SubscriptionController::importServiceFromAppStore(const QString &userC
                                             m_appSettingsRepository->getAppLanguage().name().split("_").first(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
+                                            "",
                                             "",
                                             serviceType,
                                             serviceProtocol,
@@ -396,8 +849,11 @@ ErrorCode SubscriptionController::importServiceFromAppStore(const QString &userC
         return ErrorCode::InternalError;
     }
 
+    persistProtocolIdentity(configObject, serviceProtocol, protocolData);
+
     ApiV2ServerConfig apiV2ServerConfig = ApiV2ServerConfig::fromJson(configObject);
     ApiV2ServerConfig* apiV2 = &apiV2ServerConfig;
+    applyProtocolIdentityToApiConfig(apiV2->apiConfig, serviceProtocol, protocolData);
     apiV2->apiConfig.vpnKey = normalizedKey;
     apiV2->apiConfig.isTestPurchase = isTestPurchase;
     apiV2->apiConfig.isInAppPurchase = true;
@@ -410,23 +866,203 @@ ErrorCode SubscriptionController::importServiceFromAppStore(const QString &userC
     return ErrorCode::NoError;
 }
 
-ErrorCode SubscriptionController::updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent)
+ErrorCode SubscriptionController::importServiceFromGooglePlay(const QString &userCountryCode, const QString &serviceType,
+                                                              const QString &serviceProtocol, const ProtocolData &protocolData,
+                                                              const QString &userId,
+                                                              const QString &obfuscatedAccountId,
+                                                              const QString &purchaseToken, const QString &storeProductId,
+                                                              const QString &storeProductType,
+                                                              const QString &googlePlayBasePlanId,
+                                                              const QString &orderId, int *duplicateServerIndex)
+{
+    QJsonObject authData;
+    if (!userId.trimmed().isEmpty()) {
+        authData[QStringLiteral("user_id")] = userId.trimmed();
+    }
+    if (!obfuscatedAccountId.trimmed().isEmpty()) {
+        authData[QStringLiteral("obfuscated_account_id")] = obfuscatedAccountId.trimmed();
+    }
+    authData = authDataWithUserEmail(authData);
+
+    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
+                                            QString(APP_VERSION),
+                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getInstallationUuid(true),
+                                            userCountryCode,
+                                            "",
+                                            "",
+                                            serviceType,
+                                            serviceProtocol,
+                                            authData };
+
+    QJsonObject apiPayload = gatewayRequestData.toJsonObject();
+    appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
+    apiPayload[apiDefs::key::transactionId] = purchaseToken;
+    apiPayload[apiDefs::key::purchaseToken] = purchaseToken;
+    if (!storeProductId.isEmpty()) {
+        apiPayload[apiDefs::key::storeProductId] = storeProductId;
+    }
+    if (!storeProductType.isEmpty()) {
+        apiPayload[apiDefs::key::storeProductType] = storeProductType;
+    }
+    if (!googlePlayBasePlanId.isEmpty()) {
+        apiPayload[apiDefs::key::googlePlayBasePlanId] = googlePlayBasePlanId;
+    }
+    if (!orderId.isEmpty()) {
+        apiPayload[apiDefs::key::orderId] = orderId;
+    }
+
+    QByteArray responseBody;
+    ErrorCode errorCode = executeRequest(QString("%1v1/subscriptions/gpay"), apiPayload, responseBody, false,
+                                         googlePlaySubscriptionRequestTimeoutMsecs);
+    if (errorCode != ErrorCode::NoError) {
+        qWarning().noquote() << "[GPAY] Subscription request failed. errorCode =" << static_cast<int>(errorCode)
+                             << "responseBody =" << responseBody.left(2048);
+        return errorCode;
+    }
+
+    QJsonObject responseObject = QJsonDocument::fromJson(responseBody).object();
+    QString key = responseObject.value(QStringLiteral("key")).toString();
+    if (key.isEmpty()) {
+        qWarning().noquote() << "[GPAY] Purchase response does not contain a key field";
+        return ErrorCode::ApiPurchaseError;
+    }
+
+    QString normalizedKey = key;
+    normalizedKey.replace(QStringLiteral("vpn://"), QString());
+
+    QByteArray configString = QByteArray::fromBase64(normalizedKey.toUtf8(), QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    QByteArray configUncompressed = qUncompress(configString);
+    if (!configUncompressed.isEmpty()) {
+        configString = configUncompressed;
+    }
+
+    if (configString.isEmpty()) {
+        qWarning().noquote() << "[GPAY] Purchase response config payload is empty";
+        return ErrorCode::ApiPurchaseError;
+    }
+
+    QJsonObject configObject = QJsonDocument::fromJson(configString).object();
+    quint16 crc = qChecksum(QJsonDocument(configObject).toJson());
+
+    if (configObject.value(configKey::configVersion).toInt() != serverConfigUtils::ConfigSource::AmneziaGateway) {
+        return ErrorCode::InternalError;
+    }
+
+    persistProtocolIdentity(configObject, serviceProtocol, protocolData);
+
+    ApiV2ServerConfig apiV2ServerConfig = ApiV2ServerConfig::fromJson(configObject);
+    ApiV2ServerConfig* apiV2 = &apiV2ServerConfig;
+    applyProtocolIdentityToApiConfig(apiV2->apiConfig, serviceProtocol, protocolData);
+    apiV2->apiConfig.vpnKey = normalizedKey;
+    apiV2->apiConfig.isTestPurchase = false;
+    apiV2->apiConfig.isInAppPurchase = true;
+    apiV2->apiConfig.subscriptionExpiredByServer = false;
+    apiV2->crc = crc;
+
+    if (isWireGuardKeyExchangeProtocol(serviceProtocol)) {
+        refreshWireGuardIdentityInExistingServerConfigs(m_serversRepository, serviceType, protocolData);
+    }
+
+    for (int i = 0; i < m_serversRepository->serversCount(); ++i) {
+        const QString existingServerId = m_serversRepository->serverIdAt(i);
+        const auto existingApiV2 = m_serversRepository->apiV2Config(existingServerId);
+        QString existingVpnKey = existingApiV2.has_value() ? existingApiV2->vpnKey() : QString();
+        existingVpnKey.replace(QStringLiteral("vpn://"), QString());
+        if (!existingVpnKey.isEmpty() && existingVpnKey == normalizedKey) {
+            if (duplicateServerIndex) {
+                *duplicateServerIndex = i;
+            }
+
+            if (existingApiV2.has_value() && existingApiV2->nameOverriddenByUser) {
+                apiV2->name = existingApiV2->name;
+                apiV2->displayName = existingApiV2->displayName;
+                apiV2->nameOverriddenByUser = true;
+            }
+
+            m_serversRepository->editServer(existingServerId, apiV2ServerConfig.toJson(),
+                                           serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
+            qInfo().noquote() << "[GPAY] Purchase config with the same vpn_key already exists; refreshed stored identity";
+            return ErrorCode::ApiConfigAlreadyAdded;
+        }
+    }
+
+    const QString renewalServerId = findMatchingGooglePlayRenewalServerId(m_serversRepository, serviceType);
+    if (!renewalServerId.isEmpty()) {
+        const auto existingApiV2 = m_serversRepository->apiV2Config(renewalServerId);
+        if (existingApiV2.has_value()) {
+            if (duplicateServerIndex) {
+                *duplicateServerIndex = m_serversRepository->indexOfServerId(renewalServerId);
+            }
+
+            if (existingApiV2->nameOverriddenByUser) {
+                apiV2->name = existingApiV2->name;
+                apiV2->displayName = existingApiV2->displayName;
+                apiV2->nameOverriddenByUser = true;
+            }
+
+            m_serversRepository->editServer(renewalServerId, apiV2ServerConfig.toJson(),
+                                           serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
+            qInfo().noquote() << "[GPAY] Refreshed existing in-app purchase server after renewal;"
+                              << "serverId =" << renewalServerId
+                              << "serviceProtocol =" << serviceProtocol
+                              << "publicKey =" << protocolData.wireGuardClientPubKey;
+            return ErrorCode::ApiConfigAlreadyAdded;
+        }
+    }
+
+    m_serversRepository->addServer(QString(), apiV2ServerConfig.toJson(),
+                                   serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
+
+    return ErrorCode::NoError;
+}
+
+ErrorCode SubscriptionController::updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent,
+                                                           const QString &newCityName,
+                                                           const QString &serviceProtocolOverride, bool resetClientIdentity,
+                                                           const QString &newCountryName)
 {
     auto apiV2 = m_serversRepository->apiV2Config(serverId);
     if (!apiV2.has_value()) {
         return ErrorCode::InternalError;
     }
+
+    // Always refresh from local storage right before preparing the /v1/config payload.
+    // Other flows (for example GPay renewal/reset) may have just updated the stored
+    // client identity, and /v1/config must use that latest persisted identity instead
+    // of a stale copy kept by the caller.
+    auto latestApiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!latestApiV2.has_value()) {
+        return ErrorCode::InternalError;
+    }
+    apiV2 = latestApiV2;
+
     const bool isTestPurchase = apiV2->apiConfig.isTestPurchase;
-    QString serviceProtocol = apiV2->serviceProtocol();
-    ProtocolData protocolData = generateProtocolData(serviceProtocol);
+    QString serviceProtocol = serviceProtocolOverride.trimmed().isEmpty()
+            ? apiV2->serviceProtocol()
+            : serviceProtocolOverride.trimmed().toLower();
+    ProtocolData protocolData = resetClientIdentity ? ProtocolData{} : reusableProtocolIdentity(*apiV2, serviceProtocol);
+    if (!hasReusableProtocolIdentity(serviceProtocol, protocolData)) {
+        protocolData = generateProtocolData(serviceProtocol);
+        applyProtocolIdentityToApiConfig(apiV2->apiConfig, serviceProtocol, protocolData);
+        QJsonObject syncedConfig = apiV2->toJson();
+        persistProtocolIdentity(syncedConfig, serviceProtocol, protocolData);
+        m_serversRepository->editServer(serverId, syncedConfig, serverConfigUtils::configTypeFromJson(syncedConfig));
+
+        latestApiV2 = m_serversRepository->apiV2Config(serverId);
+        if (latestApiV2.has_value()) {
+            apiV2 = latestApiV2;
+        }
+    }
     
-    QJsonObject authDataJson = apiV2->authData.toJson();
+    QJsonObject authDataJson = authDataWithUserEmail(apiV2->authData.toJson());
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
                                             m_appSettingsRepository->getAppLanguage().name().split("_").first(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             newCountryCode,
+                                            newCityName,
                                             apiV2->serviceType(),
                                             serviceProtocol,
                                             authDataJson };
@@ -439,7 +1075,7 @@ ErrorCode SubscriptionController::updateServiceFromGateway(const QString &server
     }
 
     QByteArray responseBody;
-    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody, isTestPurchase);
+    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody, isTestPurchase, configRequestTimeoutMsecs);
     if (errorCode != ErrorCode::NoError) {
         if (errorCode == ErrorCode::ApiSubscriptionExpiredError && !apiV2->apiConfig.isInAppPurchase) {
             ApiV2ServerConfig expiredApiV2 = *apiV2;
@@ -456,19 +1092,26 @@ ErrorCode SubscriptionController::updateServiceFromGateway(const QString &server
         return errorCode;
     }
     
-    updateApiConfigInJson(serverConfigJson, apiV2->apiConfig.serviceType, serviceProtocol, apiV2->apiConfig.userCountryCode, responseBody);
+        const QString serverLocationName = newCityName.trimmed().isEmpty()
+            ? (newCountryName.trimmed().isEmpty() ? apiV2->apiConfig.serverCountryName : newCountryName.trimmed())
+            : newCityName.trimmed();
+    updateApiConfigInJson(serverConfigJson, apiV2->apiConfig.serviceType, serviceProtocol, apiV2->apiConfig.userCountryCode,
+                          responseBody, newCountryCode, serverLocationName);
     
     if (serverConfigJson.value(configKey::configVersion).toInt() != serverConfigUtils::ConfigSource::AmneziaGateway) {
         return ErrorCode::InternalError;
     }
 
     ApiV2ServerConfig newApiV2Config = ApiV2ServerConfig::fromJson(serverConfigJson);
+    alignDefaultContainerWithServiceProtocol(newApiV2Config, serviceProtocol);
     ApiV2ServerConfig* newApiV2 = &newApiV2Config;
     
     newApiV2->apiConfig.vpnKey = apiV2->apiConfig.vpnKey;
     newApiV2->apiConfig.isTestPurchase = apiV2->apiConfig.isTestPurchase;
     newApiV2->apiConfig.isInAppPurchase = apiV2->apiConfig.isInAppPurchase;
     newApiV2->apiConfig.subscriptionExpiredByServer = false;
+    newApiV2->apiConfig.clientIdentity = apiV2->apiConfig.clientIdentity;
+    applyProtocolIdentityToApiConfig(newApiV2->apiConfig, serviceProtocol, protocolData);
     
     newApiV2->authData = apiV2->authData;
     newApiV2->crc = apiV2->crc;
@@ -482,6 +1125,67 @@ ErrorCode SubscriptionController::updateServiceFromGateway(const QString &server
     m_serversRepository->editServer(serverId, newApiV2Config.toJson(),
                                    serverConfigUtils::configTypeFromJson(newApiV2Config.toJson()));
     return ErrorCode::NoError;
+}
+
+ErrorCode SubscriptionController::resetServiceClientIdentity(const QString &serverId, QString *serverMessage)
+{
+    auto apiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!apiV2.has_value()) {
+        return ErrorCode::InternalError;
+    }
+
+    const ProtocolData wireGuardProtocolData = generateProtocolData(configKey::awg);
+    const ProtocolData vlessProtocolData = generateProtocolData(configKey::vless);
+
+    applyProtocolIdentityToApiConfig(apiV2->apiConfig, configKey::awg, wireGuardProtocolData);
+    applyProtocolIdentityToApiConfig(apiV2->apiConfig, configKey::vless, vlessProtocolData);
+
+    m_serversRepository->editServer(serverId, apiV2->toJson(),
+                                    serverConfigUtils::configTypeFromJson(apiV2->toJson()));
+
+    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
+                                            QString(APP_VERSION),
+                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getInstallationUuid(true),
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            authDataWithUserEmail(QJsonObject()) };
+
+    QJsonObject apiPayload = gatewayRequestData.toJsonObject();
+    if (apiV2->serviceProtocol() == configKey::vless) {
+        apiPayload[apiDefs::key::publicKey] = vlessProtocolData.xrayUuid;
+    } else {
+        apiPayload[apiDefs::key::publicKey] = wireGuardProtocolData.wireGuardClientPubKey;
+    }
+
+    QByteArray responseBody;
+    ErrorCode errorCode = executeRequest(QString("%1v1/subscriptions/reset"), apiPayload, responseBody,
+                                         apiV2->apiConfig.isTestPurchase);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    const QJsonObject responseObject = QJsonDocument::fromJson(responseBody).object();
+    const QString status = responseObject.value(QStringLiteral("status")).toString();
+    const QString message = responseObject.value(QStringLiteral("message")).toString();
+    if (serverMessage) {
+        *serverMessage = message;
+    }
+
+    if (status == QStringLiteral("success")) {
+        return ErrorCode::NoError;
+    }
+
+    if (status == QStringLiteral("error")) {
+        return ErrorCode::ApiUpdateRequestError;
+    }
+
+    qWarning().noquote() << "Subscription reset response has unexpected status:" << status
+                         << "responseBody =" << responseBody.left(2048);
+    return ErrorCode::ApiUpdateRequestError;
 }
 
 ErrorCode SubscriptionController::deactivateDevice(const QString &serverId)
@@ -502,6 +1206,7 @@ ErrorCode SubscriptionController::deactivateDevice(const QString &serverId)
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             apiV2->apiConfig.serverCountryCode,
+                                            "",
                                             apiV2->serviceType(),
                                             "",
                                             authDataJson };
@@ -539,6 +1244,7 @@ ErrorCode SubscriptionController::deactivateExternalDevice(const QString &server
                                             uuid,
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
+                                            "",
                                             apiV2->serviceType(),
                                             "",
                                             authDataJson };
@@ -569,7 +1275,13 @@ ErrorCode SubscriptionController::exportNativeConfig(const QString &serverId, co
     }
     const bool isTestPurchase = apiV2->apiConfig.isTestPurchase;
     QString protocol = configKey::awg;
-    ProtocolData protocolData = generateProtocolData(protocol);
+    ProtocolData protocolData = reusableProtocolIdentity(*apiV2, protocol);
+    if (!hasReusableProtocolIdentity(protocol, protocolData)) {
+        protocolData = generateProtocolData(protocol);
+        applyProtocolIdentityToApiConfig(apiV2->apiConfig, protocol, protocolData);
+        m_serversRepository->editServer(serverId, apiV2->toJson(),
+                                        serverConfigUtils::configTypeFromJson(apiV2->toJson()));
+    }
 
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
@@ -578,6 +1290,7 @@ ErrorCode SubscriptionController::exportNativeConfig(const QString &serverId, co
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
+                                            "",
                                             apiV2->serviceType(),
                                             protocol,
                                             authDataJson };
@@ -613,6 +1326,7 @@ ErrorCode SubscriptionController::revokeNativeConfig(const QString &serverId, co
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
+                                            "",
                                             apiV2->serviceType(),
                                             protocol,
                                             authDataJson };
@@ -650,17 +1364,69 @@ ErrorCode SubscriptionController::prepareVpnKeyExport(const QString &serverId, Q
 
 ErrorCode SubscriptionController::validateAndUpdateConfig(const QString &serverId, bool hasInstalledContainers)
 {
-    if (!m_serversRepository->apiV2Config(serverId).has_value()) {
+    const auto apiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!apiV2.has_value()) {
         return ErrorCode::NoError;
     }
 
+    const QString serverCountryCode = apiV2->apiConfig.serverCountryCode;
+    const QString serverLocationName = apiV2->apiConfig.serverCountryName;
+    const QString serviceProtocol = apiV2->serviceProtocol();
+
     if (!hasInstalledContainers) {
-        return updateServiceFromGateway(serverId, "", true);
+        qDebug() << "validateAndUpdateConfig: installed containers missing, refreshing API config"
+                 << "serverCountryCode=" << serverCountryCode
+                 << "serverLocationName=" << serverLocationName
+                 << "serviceProtocol=" << serviceProtocol;
+        return updateServiceFromGateway(serverId, serverCountryCode, true,
+                                        serverLocationName, serviceProtocol,
+                                        false, serverLocationName);
     }
 
     if (isApiKeyExpired(serverId)) {
         qDebug() << "attempt to update api config by expires_at event";
-        return updateServiceFromGateway(serverId, "", true);
+        return updateServiceFromGateway(serverId, serverCountryCode, true,
+                                        serverLocationName, serviceProtocol,
+                                        false, serverLocationName);
+    }
+
+    return ErrorCode::NoError;
+}
+
+ErrorCode SubscriptionController::refreshWireGuardConfigForConnection(const QString &serverId)
+{
+    const auto apiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!apiV2.has_value()) {
+        return ErrorCode::ApiConfigEmptyError;
+    }
+
+    const QString serviceProtocol = apiV2->serviceProtocol().trimmed().toLower();
+    if (!isWireGuardKeyExchangeProtocol(serviceProtocol)) {
+        return ErrorCode::InternalError;
+    }
+
+    const QString serverCountryCode = apiV2->apiConfig.serverCountryCode;
+    const QString serverLocationName = apiV2->apiConfig.serverCountryName;
+    const ErrorCode errorCode = updateServiceFromGateway(serverId,
+                                                         serverCountryCode,
+                                                         true,
+                                                         serverLocationName,
+                                                         serviceProtocol,
+                                                         false,
+                                                         serverLocationName);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    // Do not start the tunnel from an old or incomplete record if persistence
+    // rejected the response for any reason. prepareConnection() will read this
+    // same repository record again immediately before local tunnel startup.
+    const auto persistedApiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!persistedApiV2.has_value()
+            || persistedApiV2->serviceProtocol().trimmed().toLower() != serviceProtocol
+            || persistedApiV2->defaultContainer == DockerContainer::None
+            || !persistedApiV2->containers.contains(persistedApiV2->defaultContainer)) {
+        return ErrorCode::ApiConfigEmptyError;
     }
 
     return ErrorCode::NoError;
@@ -797,6 +1563,65 @@ ErrorCode SubscriptionController::processAppStorePurchase(const QString &userCou
 #endif
 }
 
+ErrorCode SubscriptionController::processGooglePlayPurchase(const QString &userCountryCode, const QString &serviceType,
+                                                            const QString &serviceProtocol, const QString &productId,
+                                                            const QString &productType,
+                                                            const QString &googlePlayBasePlanId,
+                                                            int *duplicateServerIndex)
+{
+#ifdef Q_OS_ANDROID
+    const QString userId = m_appSettingsRepository->getAuthUserId();
+    const QString obfuscatedAccountId = makeGooglePlayObfuscatedAccountId(userId);
+    QString purchaseToken;
+    QString resolvedProductId;
+    QString resolvedProductType;
+    QString orderId;
+    QString purchaseError;
+
+    const bool purchaseOk = AndroidController::instance()->purchaseProduct(
+        productId,
+        productType,
+        googlePlayBasePlanId,
+        obfuscatedAccountId,
+        &purchaseToken,
+        &resolvedProductId,
+        &resolvedProductType,
+        &orderId,
+        &purchaseError);
+
+    if (!purchaseOk || purchaseToken.isEmpty()) {
+        qWarning().noquote() << "[GPAY] Purchase failed:" << purchaseError;
+        return ErrorCode::ApiPurchaseError;
+    }
+
+    qInfo().noquote() << "[GPAY] Purchase success. purchaseToken =" << purchaseToken
+                      << "productId =" << resolvedProductId
+                      << "productType =" << resolvedProductType
+                      << "basePlanId =" << googlePlayBasePlanId
+                      << "orderId =" << orderId;
+
+    ProtocolData protocolData = generateProtocolData(serviceProtocol);
+    return importServiceFromGooglePlay(userCountryCode, serviceType, serviceProtocol, protocolData,
+                                       userId,
+                                       obfuscatedAccountId,
+                                       purchaseToken,
+                                       resolvedProductId.isEmpty() ? productId : resolvedProductId,
+                                       resolvedProductType.isEmpty() ? productType : resolvedProductType,
+                                       googlePlayBasePlanId,
+                                       orderId,
+                                       duplicateServerIndex);
+#else
+    Q_UNUSED(userCountryCode);
+    Q_UNUSED(serviceType);
+    Q_UNUSED(serviceProtocol);
+    Q_UNUSED(productId);
+    Q_UNUSED(productType);
+    Q_UNUSED(googlePlayBasePlanId);
+    Q_UNUSED(duplicateServerIndex);
+    return ErrorCode::ApiPurchaseError;
+#endif
+}
+
 SubscriptionController::AppStoreRestoreResult SubscriptionController::processAppStoreRestore(const QString &userCountryCode, const QString &serviceType,
                                                                                              const QString &serviceProtocol)
 {
@@ -900,6 +1725,7 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             "",
+                                            "",
                                             apiV2->serviceType(),
                                             "",
                                             authDataJson };
@@ -915,6 +1741,19 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
     }
 
     accountInfo = QJsonDocument::fromJson(responseBody).object();
+
+    if (accountInfo.contains(apiDefs::key::availableCountries)) {
+        ApiV2ServerConfig updatedApiV2 = *apiV2;
+        updatedApiV2.apiConfig.availableCountries = accountInfo.value(apiDefs::key::availableCountries).toArray();
+
+        if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
+            updatedApiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+        }
+
+        m_serversRepository->editServer(serverId, updatedApiV2.toJson(),
+                                       serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
+    }
+
     return ErrorCode::NoError;
 }
 
@@ -937,6 +1776,7 @@ QFuture<QPair<ErrorCode, QString>> SubscriptionController::getRenewalLink(const 
                                             m_appSettingsRepository->getAppLanguage().name().split("_").first(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
+                                            "",
                                             "",
                                             apiV2->serviceType(),
                                             "",
@@ -986,9 +1826,10 @@ ErrorCode SubscriptionController::resolveImportServiceCaptcha(const QString &use
                                           m_appSettingsRepository->getInstallationUuid(true),
                                           userCountryCode,
                                           "",
+                                          "",
                                           serviceType,
                                           serviceProtocol,
-                                          QJsonObject()};
+                                          authDataWithUserEmail(QJsonObject())};
 
     QJsonObject apiPayload = gatewayRequestData.toJsonObject();
     appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
@@ -1007,7 +1848,7 @@ ErrorCode SubscriptionController::resolveImportServiceCaptcha(const QString &use
     apiPayload["captcha_solution"] = normalizedSolution.isEmpty() ? captchaSolution.trimmed() : normalizedSolution;
 
     QByteArray responseBody;
-    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody);
+    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody, false, configRequestTimeoutMsecs);
     if (errorCode != ErrorCode::NoError) {
         if (retryCaptchaOut
             && (errorCode == ErrorCode::ApiCaptchaInvalidError || errorCode == ErrorCode::ApiCaptchaRefreshError
@@ -1039,6 +1880,7 @@ ErrorCode SubscriptionController::resolveImportServiceCaptcha(const QString &use
     }
 
     ApiV2ServerConfig apiV2ServerConfig = ApiV2ServerConfig::fromJson(serverConfigJson);
+    alignDefaultContainerWithServiceProtocol(apiV2ServerConfig, serviceProtocol);
     m_serversRepository->addServer(QString(), apiV2ServerConfig.toJson(),
                                    serverConfigUtils::configTypeFromJson(apiV2ServerConfig.toJson()));
     return ErrorCode::NoError;

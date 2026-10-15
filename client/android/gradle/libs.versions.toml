@@ -2,6 +2,7 @@
 agp = "8.6.1"
 kotlin = "1.9.24"
 androidx-core = "1.13.1"
+androidx-browser = "1.8.0"
 androidx-activity = "1.9.1"
 androidx-annotation = "1.8.2"
 androidx-biometric = "1.2.0-alpha05"
@@ -12,9 +13,11 @@ androidx-datastore = "1.1.1"
 kotlinx-coroutines = "1.8.1"
 kotlinx-serialization = "1.6.3"
 google-mlkit = "17.3.0"
+google-play-billing = "8.0.0"
 
 [libraries]
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "androidx-browser" }
 androidx-activity = { module = "androidx.activity:activity-ktx", version.ref = "androidx-activity" }
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidx-annotation" }
 androidx-biometric = { module = "androidx.biometric:biometric-ktx", version.ref = "androidx-biometric" }
@@ -28,6 +31,7 @@ androidx-datastore = { module = "androidx.datastore:datastore-preferences", vers
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf", version.ref = "kotlinx-serialization" }
 google-mlkit = { module = "com.google.mlkit:barcode-scanning", version.ref = "google-mlkit" }
+google-play-billing = { module = "com.android.billingclient:billing", version.ref = "google-play-billing" }
 
 [bundles]
 androidx-camera = [

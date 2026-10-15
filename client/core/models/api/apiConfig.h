@@ -55,6 +55,17 @@ struct ApiConfig
         static PublicKeyInfo fromJson(const QJsonObject& json);
     };
     PublicKeyInfo publicKey;
+
+    struct ClientIdentity {
+        QString wireGuardClientPrivKey;
+        QString wireGuardClientPubKey;
+        QString wireGuardClientId;
+        QString vlessUuid;
+
+        QJsonObject toJson() const;
+        static ClientIdentity fromJson(const QJsonObject& json);
+    };
+    ClientIdentity clientIdentity;
     
     QString stackType;
     QString cliVersion;

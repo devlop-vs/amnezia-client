@@ -1,6 +1,7 @@
 package org.amnezia.vpn.protocol.wireguard
 
 import android.net.VpnService.Builder
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,8 +23,13 @@ import org.amnezia.vpn.util.net.InetNetwork
 import org.amnezia.vpn.util.net.parseInetAddress
 import org.amnezia.vpn.util.optStringOrNull
 import org.json.JSONObject
+import java.net.InetAddress
+import java.net.UnknownHostException
 
 private const val TAG = "Wireguard"
+private const val STATUS_POLL_INTERVAL_MS = 1_000L
+private const val HANDSHAKE_TIMEOUT_MS = 10_000L
+private const val STATUS_LOG_INTERVAL_POLLS = 5
 
 open class Wireguard : Protocol() {
 
@@ -102,7 +108,10 @@ open class Wireguard : Protocol() {
 
         configData.optStringOrNull("mtu")?.let { setMtu(it.toInt()) }
 
-        val host = configData.getString("hostName").let { parseInetAddress(it.trim()) }
+        val host = resolveEndpointHost(
+            configData.getString("hostName").trim(),
+            config.optStringOrNull("hostName")?.trim()
+        )
         val port = configData.getInt("port")
         setEndpoint(InetEndpoint(host, port))
 
@@ -115,6 +124,18 @@ open class Wireguard : Protocol() {
         configData.getString("client_priv_key").let { setPrivateKeyHex(it.base64ToHex()) }
         configData.getString("server_pub_key").let { setPublicKeyHex(it.base64ToHex()) }
         configData.optStringOrNull("psk_key")?.let { setPreSharedKeyHex(it.base64ToHex()) }
+    }
+
+    private fun resolveEndpointHost(primaryHost: String, fallbackHost: String?): InetAddress {
+        try {
+            return parseInetAddress(primaryHost)
+        } catch (e: UnknownHostException) {
+            if (!fallbackHost.isNullOrEmpty() && fallbackHost != primaryHost) {
+                Log.w(TAG, "WireGuard endpoint host '$primaryHost' cannot be resolved, try top-level hostName '$fallbackHost'")
+                return parseInetAddress(fallbackHost)
+            }
+            throw e
+        }
     }
 
     protected fun WireguardConfig.Builder.configExtensionParameters(configData: JSONObject) {
@@ -147,6 +168,7 @@ open class Wireguard : Protocol() {
             return
         }
 
+        Log.i(TAG, "Start tunnel: interface=$ifName, endpoint=${config.endpoint}, mtu=${config.mtu}")
         buildVpnInterface(config, vpnBuilder)
 
         vpnBuilder.establish().use { tunFd ->
@@ -165,7 +187,16 @@ open class Wireguard : Protocol() {
             throw VpnStartException("Wireguard tunnel creation error")
         }
 
-        if (!protect(GoBackend.awgGetSocketV4(tunnelHandle)) || !protect(GoBackend.awgGetSocketV6(tunnelHandle))) {
+        val socketV4 = GoBackend.awgGetSocketV4(tunnelHandle)
+        val socketV6 = GoBackend.awgGetSocketV6(tunnelHandle)
+        val protectedV4 = protect(socketV4)
+        val protectedV6 = protect(socketV6)
+        Log.i(
+            TAG,
+            "Tunnel backend started: handle=$tunnelHandle, socketV4=$socketV4 protected=$protectedV4, " +
+                "socketV6=$socketV6 protected=$protectedV6"
+        )
+        if (!protectedV4 || !protectedV6) {
             GoBackend.awgTurnOff(tunnelHandle)
             tunnelHandle = -1
             throw VpnStartException("Protect VPN interface: permission not granted or revoked")
@@ -176,37 +207,87 @@ open class Wireguard : Protocol() {
     private fun launchStatusJob() {
         Log.d(TAG, "Launch status job")
         statusJob = scope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
+            var pollCount = 0
             while (true) {
-                val lastHandshake = getLastHandshake()
-                Log.v(TAG, "lastHandshake=$lastHandshake")
+                val tunnelStatus = getTunnelStatus()
+                val lastHandshake = tunnelStatus.lastHandshake
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
+                ++pollCount
                 if (lastHandshake == 0L) {
-                    delay(1000)
+                    if (pollCount == 1 || pollCount % STATUS_LOG_INTERVAL_POLLS == 0) {
+                        Log.i(
+                            TAG,
+                            "Waiting for handshake: elapsedMs=$elapsed, rxBytes=${tunnelStatus.rxBytes}, " +
+                                "txBytes=${tunnelStatus.txBytes}"
+                        )
+                    }
+                    if (elapsed >= HANDSHAKE_TIMEOUT_MS) {
+                        Log.e(
+                            TAG,
+                            "WireGuard handshake timeout: elapsedMs=$elapsed, rxBytes=${tunnelStatus.rxBytes}, " +
+                                "txBytes=${tunnelStatus.txBytes}"
+                        )
+                        onError("WireGuard handshake timed out after ${HANDSHAKE_TIMEOUT_MS / 1000} seconds")
+                        turnOffVpn()
+                        state.value = DISCONNECTED
+                        break
+                    }
+                    delay(STATUS_POLL_INTERVAL_MS)
                     continue
                 }
-                if (lastHandshake == -2L || lastHandshake > 0L) state.value = CONNECTED
-                else if (lastHandshake == -1L) state.value = DISCONNECTED
+                if (lastHandshake > 0L) {
+                    Log.i(
+                        TAG,
+                        "Handshake detected: lastHandshake=$lastHandshake, elapsedMs=$elapsed, " +
+                            "rxBytes=${tunnelStatus.rxBytes}, txBytes=${tunnelStatus.txBytes}"
+                    )
+                    state.value = CONNECTED
+                } else if (lastHandshake == -2L) {
+                    onError("Failed to read WireGuard tunnel status")
+                    turnOffVpn()
+                    state.value = DISCONNECTED
+                } else if (lastHandshake == -1L) {
+                    state.value = DISCONNECTED
+                }
                 statusJob = null
                 break
             }
         }
     }
 
-    private fun getLastHandshake(): Long {
+    private data class TunnelStatus(
+        val lastHandshake: Long,
+        val rxBytes: Long,
+        val txBytes: Long
+    )
+
+    private fun getTunnelStatus(): TunnelStatus {
         if (tunnelHandle == -1) {
             Log.e(TAG, "Trying to get config of a non-existent tunnel")
-            return -1
+            return TunnelStatus(-1, 0, 0)
         }
         val config = GoBackend.awgGetConfig(tunnelHandle)
         if (config == null) {
             Log.e(TAG, "Failed to get tunnel config")
-            return -2
+            return TunnelStatus(-2, 0, 0)
         }
-        val lastHandshake = config.lines().find { it.startsWith("last_handshake_time_sec=") }?.substring(24)?.toLong()
+        var lastHandshake: Long? = null
+        var rxBytes = 0L
+        var txBytes = 0L
+        config.lineSequence().forEach { line ->
+            when {
+                line.startsWith("last_handshake_time_sec=") ->
+                    lastHandshake = line.substringAfter('=').toLongOrNull()
+                line.startsWith("rx_bytes=") -> rxBytes = line.substringAfter('=').toLongOrNull() ?: 0
+                line.startsWith("tx_bytes=") -> txBytes = line.substringAfter('=').toLongOrNull() ?: 0
+            }
+        }
         if (lastHandshake == null) {
             Log.e(TAG, "Failed to get last_handshake_time_sec")
-            return -2
+            return TunnelStatus(-2, rxBytes, txBytes)
         }
-        return lastHandshake
+        return TunnelStatus(lastHandshake!!, rxBytes, txBytes)
     }
 
     private fun turnOffVpn() {

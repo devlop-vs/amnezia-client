@@ -162,9 +162,6 @@ class Xray : Protocol() {
             if (tunFd == null) {
                 throw VpnStartException("Create VPN interface: permission not granted or revoked")
             }
-            Log.d(TAG, "Run tun2Socks")
-            runTun2Socks(config, tunFd.detachFd())
-
             Log.d(TAG, "Run XRay")
             Log.i(TAG, "xray ${LibXray.xrayVersion()}")
             val assetsPath = context.getDir("assets", Context.MODE_PRIVATE).absolutePath
@@ -180,8 +177,15 @@ class Xray : Protocol() {
                 throw VpnStartException("Failed to write xray config: ${e.message}")
             }
             LibXray.runXray(geoDir, configPath.absolutePath, config.maxMemory).isNotNullOrBlank { err ->
-                LibXray.stopTun2Socks()
                 throw VpnStartException("Failed to start xray: $err")
+            }
+
+            Log.d(TAG, "Run tun2Socks")
+            try {
+                runTun2Socks(config, tunFd.detachFd())
+            } catch (e: Exception) {
+                LibXray.stopXray()
+                throw e
             }
         }
     }

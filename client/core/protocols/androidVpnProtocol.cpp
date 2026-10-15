@@ -19,3 +19,8 @@ void AndroidVpnProtocol::stop()
     setConnectionState(Vpn::ConnectionState::Disconnecting);
     AndroidController::instance()->stop();
 }
+
+void AndroidVpnProtocol::setSpeedChanged(quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond)
+{
+    emit bytesChanged(receivedBytesPerSecond, sentBytesPerSecond);
+}

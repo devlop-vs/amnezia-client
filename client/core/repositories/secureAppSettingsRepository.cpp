@@ -1,6 +1,5 @@
 #include "secureAppSettingsRepository.h"
 
-#include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QUuid>
@@ -394,6 +393,16 @@ QString SecureAppSettingsRepository::getInstallationUuid(bool createIfNotExists)
         const_cast<SecureAppSettingsRepository*>(this)->setValue("Conf/installationUuid", uuid);
     }
     return uuid;
+}
+
+QString SecureAppSettingsRepository::getAuthUserId() const
+{
+    return value("Auth/userId", "").toString().trimmed();
+}
+
+QString SecureAppSettingsRepository::getAuthUserEmail() const
+{
+    return value("Auth/userEmail", "").toString().trimmed();
 }
 
 QStringList SecureAppSettingsRepository::getReadNewsIds() const

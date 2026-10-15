@@ -155,6 +155,30 @@ void ApiServicesModel::updateModel(const QJsonObject &data)
     emit serviceSelectionChanged();
 }
 
+void ApiServicesModel::updateMinPriceLabelForType(const QString &serviceType, const QString &minPriceLabel)
+{
+    const QString normalizedMinPriceLabel = minPriceLabel.trimmed();
+    if (serviceType.isEmpty() || normalizedMinPriceLabel.isEmpty()) {
+        return;
+    }
+
+    for (int serviceIndex = 0; serviceIndex < m_services.size(); ++serviceIndex) {
+        ApiServicesData &serviceData = m_services[serviceIndex];
+        if (serviceData.type != serviceType) {
+            continue;
+        }
+
+        if (serviceData.minPriceLabel == normalizedMinPriceLabel) {
+            return;
+        }
+
+        serviceData.minPriceLabel = normalizedMinPriceLabel;
+        const QModelIndex modelIndex = index(serviceIndex, 0);
+        emit dataChanged(modelIndex, modelIndex, { PriceRole });
+        return;
+    }
+}
+
 void ApiServicesModel::setServiceIndex(const int index)
 {
     m_selectedServiceIndex = index;

@@ -25,6 +25,9 @@ class ServersUiController : public QObject
     Q_PROPERTY(QString defaultServerDescriptionCollapsed READ getDefaultServerDescriptionCollapsed NOTIFY defaultServerIdChanged)
     Q_PROPERTY(QString defaultServerImagePathCollapsed READ getDefaultServerImagePathCollapsed NOTIFY defaultServerIdChanged)
     Q_PROPERTY(QString defaultServerDescriptionExpanded READ getDefaultServerDescriptionExpanded NOTIFY defaultServerIdChanged)
+    Q_PROPERTY(QString defaultServerApiCountryCode READ getDefaultServerApiCountryCode NOTIFY defaultServerIdChanged)
+    Q_PROPERTY(QString defaultServerApiCountryName READ getDefaultServerApiCountryName NOTIFY defaultServerIdChanged)
+    Q_PROPERTY(QString defaultServerApiServiceProtocol READ getDefaultServerApiServiceProtocol NOTIFY defaultServerIdChanged)
     Q_PROPERTY(bool isDefaultServerDefaultContainerHasSplitTunneling READ isDefaultServerDefaultContainerHasSplitTunneling NOTIFY defaultServerIdChanged)
     Q_PROPERTY(bool isDefaultServerFromApi READ isDefaultServerFromApi NOTIFY defaultServerIdChanged)
     
@@ -68,6 +71,9 @@ public slots:
     QString getDefaultServerDescriptionCollapsed() const;
     QString getDefaultServerImagePathCollapsed() const;
     QString getDefaultServerDescriptionExpanded() const;
+    QString getDefaultServerApiCountryCode() const;
+    QString getDefaultServerApiCountryName() const;
+    QString getDefaultServerApiServiceProtocol() const;
     bool isDefaultServerDefaultContainerHasSplitTunneling() const;
     bool isDefaultServerFromApi() const;
     bool hasServerWithWriteAccess() const;
@@ -104,6 +110,10 @@ public slots:
     int getServerIndexById(const QString &serverId) const;
     int getServersCount() const;
     QStringList getAllInstalledServicesName(int serverIndex) const;
+
+    bool hasDefaultServerContainerForProtocol(const QString &protocolName) const;
+    int defaultServerContainerForProtocol(const QString &protocolName) const;
+    bool setDefaultServerContainerForProtocol(const QString &protocolName);
 
 signals:
     void errorOccurred(const QString &errorMessage);

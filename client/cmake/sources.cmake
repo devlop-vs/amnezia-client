@@ -65,6 +65,7 @@ set(HEADERS ${HEADERS}
     ${CLIENT_ROOT_DIR}/core/utils/utilities.h
     ${CLIENT_ROOT_DIR}/core/utils/managementServer.h
     ${CLIENT_ROOT_DIR}/core/utils/constants.h
+    ${CLIENT_ROOT_DIR}/platforms/apple/oauthlauncher.h
 )
 
 # Mozilla headres
@@ -145,7 +146,14 @@ set(SOURCES ${SOURCES}
     ${CLIENT_ROOT_DIR}/core/utils/osSignalHandler.cpp
     ${CLIENT_ROOT_DIR}/core/utils/utilities.cpp
     ${CLIENT_ROOT_DIR}/core/utils/managementServer.cpp
+    ${CLIENT_ROOT_DIR}/platforms/apple/oauthlauncher.cpp
 )
+
+if(APPLE)
+    list(APPEND SOURCES
+        ${CLIENT_ROOT_DIR}/platforms/apple/oauthlauncher_apple.mm
+    )
+endif()
 
 # Mozilla sources
 set(SOURCES ${SOURCES}

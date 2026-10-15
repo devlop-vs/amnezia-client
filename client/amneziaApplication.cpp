@@ -141,6 +141,12 @@ void AmneziaApplication::init()
     m_engine->rootContext()->setContextProperty("IsMacOsNeBuild", false);
 #endif
 
+#ifdef GPAY
+    m_engine->rootContext()->setContextProperty("IsGooglePlayBillingBuild", true);
+#else
+    m_engine->rootContext()->setContextProperty("IsGooglePlayBillingBuild", false);
+#endif
+
     m_vpnConnection.reset(new VpnConnection(nullptr, nullptr));
     m_vpnConnection->moveToThread(&m_vpnConnectionThread);
     m_vpnConnectionThread.start();

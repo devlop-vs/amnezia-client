@@ -84,13 +84,10 @@ private:
     QTimer m_checkTimer;
 
 #ifdef Q_OS_ANDROID
-   AndroidVpnProtocol* androidVpnProtocol = nullptr;
-
    AndroidVpnProtocol* createDefaultAndroidVpnProtocol();
-   void createAndroidConnections();
 #endif
 
-   Vpn::ConnectionState m_connectionState;
+    Vpn::ConnectionState m_connectionState = Vpn::ConnectionState::Disconnected;
 
    void createProtocolConnections();
 

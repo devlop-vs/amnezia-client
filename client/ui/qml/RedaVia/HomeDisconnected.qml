@@ -14,6 +14,30 @@ Rectangle {
     signal connectPressed()
     signal serverChangeRequested()
 
+    property string countryCode: "GB"
+    property string countryName: "United Kingdom"
+    property string protocolName: ""
+
+    function flagEmoji(countryCode) {
+        var code = countryCode.toUpperCase()
+        if (code.length !== 2) {
+            return "🌐"
+        }
+
+        return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65,
+                                    0x1F1E6 + code.charCodeAt(1) - 65)
+    }
+
+    function protocolDisplayName(protocol) {
+        switch (protocol.toLowerCase()) {
+        case "wireguard": return "WireGuard"
+        case "awg": return "AmneziaWG"
+        case "openvpn": return "OpenVPN"
+        case "vless": return "VLESS"
+        default: return protocol
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -36,7 +60,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 8
-            text: "00:25:57"
+            text: ConnectionController.connectionDurationText
             font { family: Theme.fontFamily; pixelSize: 48; bold: true }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -60,16 +84,16 @@ Rectangle {
 
         ServerCard {
             Layout.topMargin: 16
-            flag: "🇬🇧"
-            country: "United Kingdom"
-            ipAddress: "212.369.56.87"
+            flag: root.flagEmoji(root.countryCode)
+            country: root.countryName.length > 0 ? root.countryName : qsTr("Select location")
+            ipAddress: root.protocolDisplayName(root.protocolName)
             onClicked: root.serverChangeRequested()
         }
 
         SpeedStats {
             Layout.topMargin: 20
-            downloadSpeed: "147.67 Mbps"
-            uploadSpeed: "348.3 Mbps"
+            downloadSpeed: "0 Mbps"
+            uploadSpeed: "0 Mbps"
         }
 
         Item { Layout.fillHeight: true }
@@ -83,7 +107,7 @@ Rectangle {
             Image {
                 id: earthImage
                 anchors.fill: parent
-                source: "assets/earth-background.png"
+                source: "qrc:/ui/qml/RedaVia/assets/earth-background.png"
                 fillMode: Image.PreserveAspectCrop
                 visible: false
                 smooth: true

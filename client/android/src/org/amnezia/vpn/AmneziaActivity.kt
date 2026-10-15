@@ -36,13 +36,29 @@ import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.annotation.MainThread
 import androidx.annotation.RequiresApi
+import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.android.billingclient.api.AcknowledgePurchaseParams
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.BillingClient.BillingResponseCode
+import com.android.billingclient.api.BillingFlowParams
+import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.PendingPurchasesParams
+import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.QueryProductDetailsParams
 import java.io.IOException
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.NumberFormat
+import java.util.Currency
+import java.util.Locale
 import kotlin.LazyThreadSafetyMode.NONE
 import kotlin.coroutines.CoroutineContext
 import kotlin.text.RegexOption.IGNORE_CASE
@@ -58,6 +74,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.amnezia.vpn.protocol.getStatistics
 import org.amnezia.vpn.protocol.getStatus
+import org.amnezia.vpn.protocol.ProtocolState.CONNECTED
+import org.amnezia.vpn.protocol.ProtocolState.CONNECTING
+import org.amnezia.vpn.protocol.ProtocolState.RECONNECTING
 import org.amnezia.vpn.qt.QtAndroidController
 import org.amnezia.vpn.util.LibraryLoader.loadSharedLibrary
 import org.amnezia.vpn.util.Log
@@ -95,6 +114,8 @@ class AmneziaActivity : QtActivity() {
 
     private var isActivityResumed = false
     private var hasWindowFocus = false
+    private var billingClient: BillingClient? = null
+    private var pendingGooglePlayProductType: String = ""
     private val resumeHandler = Handler(Looper.getMainLooper())
     private var pendingOpenFileUri: String? = null
     private var openFileDeliveryScheduled = false
@@ -121,6 +142,7 @@ class AmneziaActivity : QtActivity() {
 
                     ServiceEvent.STATISTICS_UPDATE -> {
                         msg.data?.getStatistics()?.let { (rxBytes, txBytes) ->
+                            Log.v(TAG, "Handle statistics update: rx=$rxBytes, tx=$txBytes, resumed=$isActivityResumed, serviceConnected=$isServiceConnected")
                             QtAndroidController.onStatisticsUpdate(rxBytes, txBytes)
                         }
                     }
@@ -176,6 +198,461 @@ class AmneziaActivity : QtActivity() {
                 doBindService()
             }
         }
+    }
+
+    private fun billingClient(): BillingClient {
+        billingClient?.let { return it }
+
+        return BillingClient.newBuilder(this)
+            .enablePendingPurchases(
+                PendingPurchasesParams.newBuilder()
+                    .enableOneTimeProducts()
+                    .build()
+            )
+            .enableAutoServiceReconnection()
+            .setListener { billingResult, purchases ->
+                handleBillingPurchasesUpdated(billingResult, purchases)
+            }
+            .build()
+            .also { billingClient = it }
+    }
+
+    private fun ensureBillingReady(onReady: (Boolean, String?) -> Unit) {
+        val client = billingClient()
+        if (client.isReady) {
+            onReady(true, null)
+            return
+        }
+
+        client.startConnection(object : com.android.billingclient.api.BillingClientStateListener {
+            override fun onBillingServiceDisconnected() {
+                onReady(false, "Google Play Billing service disconnected")
+            }
+
+            override fun onBillingSetupFinished(billingResult: BillingResult) {
+                if (billingResult.responseCode == BillingResponseCode.OK) {
+                    onReady(true, null)
+                } else {
+                    onReady(false, billingResult.debugMessage)
+                }
+            }
+        })
+    }
+
+    private fun notifyGooglePlayPurchaseResult(
+        success: Boolean,
+        purchaseToken: String = "",
+        productId: String = "",
+        productType: String = "",
+        orderId: String = "",
+        errorMessage: String = ""
+    ) {
+        mainScope.launch {
+            qtInitialized.await()
+            QtAndroidController.onGooglePlayPurchaseCompleted(
+                success,
+                purchaseToken,
+                productId,
+                productType,
+                orderId,
+                errorMessage
+            )
+        }
+    }
+
+    private fun notifyGooglePlayProductDetailsResult(
+        success: Boolean,
+        productId: String = "",
+        productType: String = "",
+        googlePlayBasePlanId: String = "",
+        priceLabel: String = "",
+        subtitleLabel: String = "",
+        monthlyPriceLabel: String = "",
+        monthlyPriceAmountMicros: Long = 0L,
+        errorMessage: String = ""
+    ) {
+        mainScope.launch {
+            qtInitialized.await()
+            QtAndroidController.onGooglePlayProductDetails(
+                success,
+                productId,
+                productType,
+                googlePlayBasePlanId,
+                priceLabel,
+                subtitleLabel,
+                monthlyPriceLabel,
+                monthlyPriceAmountMicros,
+                errorMessage
+            )
+        }
+    }
+
+    private data class GooglePlayProductQuote(
+        val priceLabel: String,
+        val subtitleLabel: String,
+        val monthlyPriceLabel: String,
+        val monthlyPriceAmountMicros: Long
+    )
+
+    private fun parseMonthsFromBillingPeriod(billingPeriod: String): Double {
+        if (billingPeriod.isBlank()) {
+            return 0.0
+        }
+
+        val regex = Regex("^P(?:(\\d+)Y)?(?:(\\d+)M)?(?:(\\d+)W)?(?:(\\d+)D)?$", IGNORE_CASE)
+        val match = regex.matchEntire(billingPeriod.trim()) ?: return 0.0
+
+        val years = match.groupValues.getOrNull(1)?.takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+        val months = match.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+        val weeks = match.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+        val days = match.groupValues.getOrNull(4)?.takeIf { it.isNotEmpty() }?.toDoubleOrNull() ?: 0.0
+
+        return years * 12.0 + months + weeks * (12.0 / 52.1429) + days / 30.4375
+    }
+
+    private fun formatCurrencyAmount(amount: BigDecimal, currencyCode: String): String {
+        return try {
+            NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+                currency = Currency.getInstance(currencyCode)
+            }.format(amount)
+        } catch (_: Exception) {
+            amount.toPlainString()
+        }
+    }
+
+    private fun buildSubscriptionQuote(
+        offer: ProductDetails.SubscriptionOfferDetails,
+        productDetails: ProductDetails
+    ): GooglePlayProductQuote? {
+        val pricingPhase = offer.pricingPhases.pricingPhaseList
+            .lastOrNull { it.priceAmountMicros > 0L }
+            ?: offer.pricingPhases.pricingPhaseList.lastOrNull()
+            ?: return null
+
+        val priceLabel = pricingPhase.formattedPrice.orEmpty()
+        if (priceLabel.isBlank()) {
+            return null
+        }
+
+        val months = parseMonthsFromBillingPeriod(pricingPhase.billingPeriod)
+        if (months <= 1.0 + 1e-6) {
+            return GooglePlayProductQuote(
+                priceLabel = priceLabel,
+                subtitleLabel = "",
+                monthlyPriceLabel = priceLabel,
+                monthlyPriceAmountMicros = pricingPhase.priceAmountMicros
+            )
+        }
+
+        val monthlyMicros = BigDecimal.valueOf(pricingPhase.priceAmountMicros)
+            .divide(BigDecimal.valueOf(months), 0, RoundingMode.HALF_UP)
+        val monthlyAmount = monthlyMicros
+            .divide(BigDecimal.valueOf(1_000_000L), 6, RoundingMode.HALF_UP)
+        val currencyCode = pricingPhase.priceCurrencyCode.ifBlank {
+            productDetails.oneTimePurchaseOfferDetails?.priceCurrencyCode.orEmpty()
+        }
+        if (currencyCode.isBlank()) {
+            return GooglePlayProductQuote(
+                priceLabel = priceLabel,
+                subtitleLabel = "",
+                monthlyPriceLabel = "",
+                monthlyPriceAmountMicros = 0L
+            )
+        }
+
+        val monthlyPriceLabel = formatCurrencyAmount(monthlyAmount, currencyCode)
+        return GooglePlayProductQuote(
+            priceLabel = priceLabel,
+            subtitleLabel = "$monthlyPriceLabel/mo",
+            monthlyPriceLabel = monthlyPriceLabel,
+            monthlyPriceAmountMicros = monthlyMicros.longValueExact()
+        )
+    }
+
+    private fun acknowledgePurchaseIfNeeded(purchase: Purchase) {
+        if (purchase.isAcknowledged) {
+            return
+        }
+
+        billingClient?.acknowledgePurchase(
+            AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(purchase.purchaseToken)
+                .build()
+        ) { result ->
+            if (result.responseCode != BillingResponseCode.OK) {
+                Log.w(TAG, "Failed to acknowledge purchase: ${result.debugMessage}")
+            }
+        }
+    }
+
+    private fun onProductPurchased(purchase: Purchase, productType: String) {
+        val productId = purchase.products.firstOrNull().orEmpty()
+        acknowledgePurchaseIfNeeded(purchase)
+        notifyGooglePlayPurchaseResult(
+            success = true,
+            purchaseToken = purchase.purchaseToken,
+            productId = productId,
+            productType = productType,
+            orderId = purchase.orderId.orEmpty(),
+            errorMessage = ""
+        )
+    }
+
+    private fun handleBillingPurchasesUpdated(billingResult: BillingResult, purchases: MutableList<Purchase>?) {
+        when (billingResult.responseCode) {
+            BillingResponseCode.OK -> {
+                val purchase = purchases
+                    ?.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+
+                if (purchase == null) {
+                    notifyGooglePlayPurchaseResult(false, errorMessage = "Google Play returned no completed purchase")
+                    return
+                }
+
+                onProductPurchased(purchase, pendingGooglePlayProductType)
+            }
+
+            BillingResponseCode.USER_CANCELED -> {
+                notifyGooglePlayPurchaseResult(false, errorMessage = "Purchase canceled")
+            }
+
+            else -> {
+                notifyGooglePlayPurchaseResult(false, errorMessage = billingResult.debugMessage)
+            }
+        }
+    }
+
+    private fun findSubscriptionOfferToken(
+        productDetails: ProductDetails,
+        googlePlayBasePlanId: String
+    ): String? {
+        val offers = productDetails.subscriptionOfferDetails.orEmpty()
+        if (offers.isEmpty()) {
+            return null
+        }
+
+        if (googlePlayBasePlanId.isNotBlank()) {
+            offers.firstOrNull { it.basePlanId == googlePlayBasePlanId }
+                ?.offerToken
+                ?.let { return it }
+        }
+
+        return offers.firstOrNull()?.offerToken
+    }
+
+    private fun launchProductBillingFlow(productId: String, productType: String, googlePlayBasePlanId: String, obfuscatedAccountId: String) {
+        ensureBillingReady { ready, error ->
+            if (!ready) {
+                notifyGooglePlayPurchaseResult(false, errorMessage = error ?: "Google Play Billing is unavailable")
+                return@ensureBillingReady
+            }
+
+            val normalizedProductType = when (productType.lowercase()) {
+                "subs" -> BillingClient.ProductType.SUBS
+                "inapp" -> BillingClient.ProductType.INAPP
+                else -> {
+                    notifyGooglePlayPurchaseResult(false, errorMessage = "Unsupported Google Play product type: $productType")
+                    return@ensureBillingReady
+                }
+            }
+
+            pendingGooglePlayProductType = normalizedProductType
+
+            val params = QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(productId)
+                            .setProductType(normalizedProductType)
+                            .build()
+                    )
+                )
+                .build()
+
+            billingClient?.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
+                if (billingResult.responseCode != BillingResponseCode.OK) {
+                    notifyGooglePlayPurchaseResult(false, errorMessage = billingResult.debugMessage)
+                    return@queryProductDetailsAsync
+                }
+
+                val productDetailsList = queryProductDetailsResult.productDetailsList
+                val productDetails = productDetailsList.firstOrNull()
+                if (productDetails == null) {
+                    notifyGooglePlayPurchaseResult(false, errorMessage = "Google Play product not found")
+                    return@queryProductDetailsAsync
+                }
+
+                val productDetailsParamsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder()
+                    .setProductDetails(productDetails)
+
+                if (normalizedProductType == BillingClient.ProductType.SUBS) {
+                    val offerToken = findSubscriptionOfferToken(productDetails, googlePlayBasePlanId)
+
+                    if (offerToken.isNullOrEmpty()) {
+                        notifyGooglePlayPurchaseResult(false, errorMessage = "No Google Play subscription offer available")
+                        return@queryProductDetailsAsync
+                    }
+
+                    productDetailsParamsBuilder.setOfferToken(offerToken)
+                }
+
+                val billingFlowParams = BillingFlowParams.newBuilder()
+                    .setProductDetailsParamsList(
+                        listOf(
+                            productDetailsParamsBuilder.build()
+                        )
+                    )
+                    .apply {
+                        if (obfuscatedAccountId.isNotBlank()) {
+                            setObfuscatedAccountId(obfuscatedAccountId)
+                        }
+                    }
+                    .build()
+
+                val launchResult = billingClient?.launchBillingFlow(this, billingFlowParams)
+                if (launchResult?.responseCode != BillingResponseCode.OK) {
+                    notifyGooglePlayPurchaseResult(false, errorMessage = launchResult?.debugMessage ?: "Failed to launch Google Play Billing")
+                }
+            }
+        }
+    }
+
+    private fun queryLocalizedProductPrice(productId: String, productType: String, googlePlayBasePlanId: String) {
+        ensureBillingReady { ready, error ->
+            if (!ready) {
+                notifyGooglePlayProductDetailsResult(
+                    false,
+                    productId = productId,
+                    productType = productType,
+                    googlePlayBasePlanId = googlePlayBasePlanId,
+                    errorMessage = error ?: "Google Play Billing is unavailable"
+                )
+                return@ensureBillingReady
+            }
+
+            val normalizedProductType = when (productType.lowercase()) {
+                "subs" -> BillingClient.ProductType.SUBS
+                "inapp" -> BillingClient.ProductType.INAPP
+                else -> {
+                    notifyGooglePlayProductDetailsResult(
+                        false,
+                        productId = productId,
+                        productType = productType,
+                        googlePlayBasePlanId = googlePlayBasePlanId,
+                        errorMessage = "Unsupported Google Play product type: $productType"
+                    )
+                    return@ensureBillingReady
+                }
+            }
+
+            val params = QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    listOf(
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(productId)
+                            .setProductType(normalizedProductType)
+                            .build()
+                    )
+                )
+                .build()
+
+            billingClient?.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
+                if (billingResult.responseCode != BillingResponseCode.OK) {
+                    notifyGooglePlayProductDetailsResult(
+                        false,
+                        productId = productId,
+                        productType = productType,
+                        googlePlayBasePlanId = googlePlayBasePlanId,
+                        errorMessage = billingResult.debugMessage
+                    )
+                    return@queryProductDetailsAsync
+                }
+
+                val productDetailsList = queryProductDetailsResult.productDetailsList
+                val productDetails = productDetailsList.firstOrNull()
+                if (productDetails == null) {
+                    notifyGooglePlayProductDetailsResult(
+                        false,
+                        productId = productId,
+                        productType = productType,
+                        googlePlayBasePlanId = googlePlayBasePlanId,
+                        errorMessage = "Google Play product not found"
+                    )
+                    return@queryProductDetailsAsync
+                }
+
+                val quote = when (normalizedProductType) {
+                    BillingClient.ProductType.INAPP -> {
+                        val localizedPrice = productDetails.oneTimePurchaseOfferDetails?.formattedPrice.orEmpty()
+                        if (localizedPrice.isBlank()) {
+                            null
+                        } else {
+                            GooglePlayProductQuote(
+                                priceLabel = localizedPrice,
+                                subtitleLabel = "",
+                                monthlyPriceLabel = "",
+                                monthlyPriceAmountMicros = 0L
+                            )
+                        }
+                    }
+                    BillingClient.ProductType.SUBS -> {
+                        val offers = productDetails.subscriptionOfferDetails.orEmpty()
+                        val selectedOffer = if (googlePlayBasePlanId.isNotBlank()) {
+                            offers.firstOrNull { it.basePlanId == googlePlayBasePlanId }
+                        } else {
+                            offers.firstOrNull()
+                        }
+                        selectedOffer?.let { buildSubscriptionQuote(it, productDetails) }
+                    }
+                    else -> null
+                }
+
+                if (quote == null || quote.priceLabel.isBlank()) {
+                    notifyGooglePlayProductDetailsResult(
+                        false,
+                        productId = productId,
+                        productType = productType,
+                        googlePlayBasePlanId = googlePlayBasePlanId,
+                        errorMessage = "Google Play localized price unavailable"
+                    )
+                    return@queryProductDetailsAsync
+                }
+
+                notifyGooglePlayProductDetailsResult(
+                    true,
+                    productId = productId,
+                    productType = productType,
+                    googlePlayBasePlanId = googlePlayBasePlanId,
+                    priceLabel = quote.priceLabel,
+                    subtitleLabel = quote.subtitleLabel,
+                    monthlyPriceLabel = quote.monthlyPriceLabel,
+                    monthlyPriceAmountMicros = quote.monthlyPriceAmountMicros,
+                    errorMessage = ""
+                )
+            }
+        }
+    }
+
+    @Suppress("unused")
+    fun purchaseProduct(productId: String, productType: String, googlePlayBasePlanId: String, obfuscatedAccountId: String) {
+        Log.v(TAG, "Purchase product: $productId, type: $productType, basePlan: $googlePlayBasePlanId, obfuscatedAccountIdPresent: ${obfuscatedAccountId.isNotBlank()}")
+        if (productId.isBlank()) {
+            notifyGooglePlayPurchaseResult(false, errorMessage = "Empty Google Play product id")
+            return
+        }
+
+        launchProductBillingFlow(productId, productType, googlePlayBasePlanId, obfuscatedAccountId)
+    }
+
+    @Suppress("unused")
+    fun requestProductDetails(productId: String, productType: String, googlePlayBasePlanId: String) {
+        Log.v(TAG, "Request product details: $productId, type: $productType, basePlan: $googlePlayBasePlanId")
+        if (productId.isBlank()) {
+            notifyGooglePlayProductDetailsResult(false, errorMessage = "Empty Google Play product id")
+            return
+        }
+
+        queryLocalizedProductPrice(productId, productType, googlePlayBasePlanId)
     }
 
     /**
@@ -277,11 +754,51 @@ class AmneziaActivity : QtActivity() {
         Log.d(TAG, "Start Amnezia activity")
         mainScope.launch {
             qtInitialized.await()
-            vpnProto?.let { proto ->
-                if (AmneziaVpnService.isRunning(applicationContext, proto.processName)) {
-                    doBindService()
+            bindRunningVpnService()
+        }
+    }
+
+    @MainThread
+    private suspend fun bindRunningVpnService() {
+        val savedVpnState = withContext(Dispatchers.IO) {
+            VpnStateStore.getVpnState()
+        }
+        val savedVpnProto = savedVpnState.vpnProto
+        val savedStateIsActive = savedVpnState.protocolState == CONNECTED ||
+            savedVpnState.protocolState == CONNECTING ||
+            savedVpnState.protocolState == RECONNECTING
+
+        val runningProto = savedVpnProto
+            ?.takeIf { AmneziaVpnService.isRunning(applicationContext, it.processName) }
+            ?: VpnProto.values().firstOrNull { proto ->
+                AmneziaVpnService.isRunning(applicationContext, proto.processName)
+            }
+            ?: savedVpnProto?.takeIf {
+                savedStateIsActive.also { active ->
+                    if (active) {
+                        Log.d(
+                            TAG,
+                            "Running VPN service was not visible; bind by saved active state: state=${savedVpnState.protocolState}, proto=$savedVpnProto"
+                        )
+                    }
                 }
             }
+
+        if (runningProto == null) {
+            Log.d(TAG, "No running VPN service found on activity start, saved state=${savedVpnState.protocolState}, proto=$savedVpnProto")
+            return
+        }
+
+        if (vpnProto != runningProto) {
+            Log.d(TAG, "Restore running VPN proto on activity start: $runningProto")
+            vpnProto = runningProto
+        }
+
+        isWaitingStatus = true
+        doBindService()
+
+        if (isServiceConnected) {
+            requestVpnStatus()
         }
     }
 
@@ -293,10 +810,6 @@ class AmneziaActivity : QtActivity() {
         openFileDeliveryScheduled = false
         Log.d(TAG, "Stop Amnezia activity")
         doUnbindService()
-        mainScope.launch {
-            qtInitialized.await()
-            QtAndroidController.onServiceDisconnected()
-        }
         super.onStop()
     }
 
@@ -383,6 +896,14 @@ class AmneziaActivity : QtActivity() {
         Log.d(TAG, "Resume Amnezia activity")
         if (qtInitialized.isCompleted) {
             QtAndroidController.onActivityResumed()
+        }
+        mainScope.launch {
+            qtInitialized.await()
+            if (!isInBoundState || !isServiceConnected) {
+                bindRunningVpnService()
+            } else {
+                requestVpnStatus()
+            }
         }
 
         if (pendingOpenFileUri != null && !openFileDeliveryScheduled) {
@@ -539,12 +1060,22 @@ class AmneziaActivity : QtActivity() {
      */
     @MainThread
     private fun doBindService() {
+        if (isInBoundState) {
+            Log.d(TAG, "VPN service is already bound or binding")
+            return
+        }
+
         Log.d(TAG, "Bind service")
         vpnProto?.let { proto ->
-            Intent(this, proto.serviceClass).also {
-                bindService(it, serviceConnection, BIND_ABOVE_CLIENT and BIND_AUTO_CREATE)
+            Intent(this, proto.serviceClass).also { intent ->
+                val bound = bindService(intent, serviceConnection, BIND_ABOVE_CLIENT or BIND_AUTO_CREATE)
+                Log.d(TAG, "Bind service result: $bound, proto=$proto")
+                isInBoundState = bound
+                if (!bound) {
+                    isServiceConnected = false
+                    isWaitingStatus = true
+                }
             }
-            isInBoundState = true
         }
     }
 
@@ -559,6 +1090,15 @@ class AmneziaActivity : QtActivity() {
             isInBoundState = false
             unbindService(serviceConnection)
         }
+    }
+
+    @MainThread
+    private fun requestVpnStatus() {
+        if (!isServiceConnected) return
+
+        Log.d(TAG, "Request VPN status")
+        isWaitingStatus = true
+        vpnServiceMessenger.send(Action.REQUEST_STATUS, replyTo = activityMessenger)
     }
 
     /**
@@ -691,7 +1231,17 @@ class AmneziaActivity : QtActivity() {
     @MainThread
     private fun disconnectFromVpn() {
         Log.d(TAG, "Disconnect from VPN")
-        vpnServiceMessenger.send(Action.DISCONNECT)
+        if (isServiceConnected) {
+            vpnServiceMessenger.send(Action.DISCONNECT)
+        } else {
+            Log.w(TAG, "VPN service is not bound, sending disconnect broadcast")
+        }
+
+        sendBroadcast(
+            Intent(ACTION_DISCONNECT).apply {
+                setPackage(packageName)
+            }
+        )
     }
 
     /**
@@ -999,6 +1549,30 @@ class AmneziaActivity : QtActivity() {
         Log.v(TAG, "Minimize application")
         mainScope.launch {
             moveTaskToBack(false)
+        }
+    }
+
+    @Suppress("unused")
+    fun startOAuthLogin(url: String): Boolean {
+        return try {
+            val chromePackage = "com.android.chrome"
+            val browserPackage = try {
+                packageManager.getPackageInfo(chromePackage, 0)
+                chromePackage
+            } catch (_: Exception) {
+                CustomTabsClient.getPackageName(this, null)
+            }
+
+            val customTabsIntent = CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .build()
+            browserPackage?.let { customTabsIntent.intent.setPackage(it) }
+            customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+            customTabsIntent.launchUrl(this, Uri.parse(url))
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch OAuth login", e)
+            false
         }
     }
 

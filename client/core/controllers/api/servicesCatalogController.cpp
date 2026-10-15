@@ -221,9 +221,10 @@ ErrorCode ServicesCatalogController::fillAvailableServices(QJsonObject &services
     qDebug().noquote() << "[fillAvailableServices] Request payload:" << QJsonDocument(apiPayload).toJson(QJsonDocument::Compact);
     qDebug().noquote() << "[fillAvailableServices] Gateway endpoint:" << m_appSettingsRepository->getGatewayEndpoint();
     qDebug().noquote() << "[fillAvailableServices] Is dev environment:" << m_appSettingsRepository->isDevGatewayEnv();
+    qDebug().noquote() << "[fillAvailableServices] Services path:" << servicesEndpoint();
 
     QByteArray responseBody;
-    ErrorCode errorCode = executeRequest(QString("%1v1/services"), apiPayload, responseBody);
+    ErrorCode errorCode = executeRequest(servicesEndpoint(), apiPayload, responseBody);
 
     qDebug().noquote() << "[fillAvailableServices] executeRequest errorCode:" << static_cast<int>(errorCode);
     qDebug().noquote() << "[fillAvailableServices] Response body size:" << responseBody.size();
@@ -249,6 +250,15 @@ ErrorCode ServicesCatalogController::fillAvailableServices(QJsonObject &services
 #endif
 
     return ErrorCode::NoError;
+}
+
+QString ServicesCatalogController::servicesEndpoint() const
+{
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+    return QStringLiteral("%1v1/services/gpay");
+#else
+    return QStringLiteral("%1v1/services");
+#endif
 }
 
 ErrorCode ServicesCatalogController::executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody)

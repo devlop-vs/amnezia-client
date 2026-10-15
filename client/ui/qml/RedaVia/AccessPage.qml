@@ -32,6 +32,15 @@ Rectangle {
             root.isLoading = false
             root.errorMessage = error
         }
+
+        function onLoginStarted() {
+            root.isLoading = true
+            root.errorMessage = ""
+        }
+
+        function onLoginCanceled() {
+            root.isLoading = false
+        }
     }
 
     ColumnLayout {
@@ -103,10 +112,7 @@ Rectangle {
             text: root.isLoading ? "Signing in..." : "Sign in with Browser"
             enabled: !root.isLoading
             onClicked: {
-                root.isLoading = true
-                root.errorMessage = ""
-                var loginUrl = AuthController.getLoginUrl()
-                Qt.openUrlExternally(loginUrl)
+                AuthController.startOAuthLogin()
             }
         }
 

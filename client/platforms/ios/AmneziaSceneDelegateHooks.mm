@@ -7,6 +7,7 @@
 #include <QString>
 
 #include "ios_controller.h"
+#include "platforms/apple/oauthlauncher.h"
 
 using SceneOpenURLContexts = void (*)(id, SEL, UIScene *, NSSet<UIOpenURLContext *> *);
 
@@ -14,7 +15,16 @@ static SceneOpenURLContexts g_originalSceneOpenURLContexts = nullptr;
 
 static void amnezia_handleURL(NSURL *url)
 {
-    if (!url || !url.isFileURL) {
+    if (!url) {
+        return;
+    }
+
+    if ([url.scheme isEqualToString:@"amnezia"] && [url.host isEqualToString:@"oauth"]) {
+        OAuthLauncher::instance()->notifyCallbackReceived(QString::fromUtf8(url.absoluteString.UTF8String));
+        return;
+    }
+
+    if (!url.isFileURL) {
         return;
     }
 

@@ -327,19 +327,20 @@ void CoreSignalHandlers::initPrepareConfigHandler()
         const serverConfigUtils::ConfigType kind = m_coreController->m_serversRepository->serverKind(serverId);
 
         if (serverConfigUtils::isApiV2Subscription(kind) || serverConfigUtils::isLegacyApiSubscription(kind)) {
-            m_coreController->m_subscriptionUiController->validateConfig();
+            m_coreController->m_subscriptionUiController->validateConfig(serverId);
         } else {
             m_coreController->m_installUiController->validateConfig();
         }
     });
 
-    connect(m_coreController->m_subscriptionUiController, &SubscriptionUiController::configValidated, this, [this](bool isValid) {
+    connect(m_coreController->m_subscriptionUiController, &SubscriptionUiController::configValidated, this,
+            [this](const QString &serverId, bool isValid) {
         if (!isValid) {
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
         }
 
-        m_coreController->m_connectionUiController->openConnection();
+        m_coreController->m_connectionUiController->openConnectionForServer(serverId);
     });
 
     connect(m_coreController->m_installUiController, &InstallUiController::configValidated, this, [this](bool isValid) {
@@ -384,8 +385,14 @@ void CoreSignalHandlers::initAndroidConnectionHandler()
 {
 #ifdef Q_OS_ANDROID
     connect(AndroidController::instance(), &AndroidController::initConnectionState, this, [this](Vpn::ConnectionState state) {
+        if (state == Vpn::ConnectionState::Connected
+                || state == Vpn::ConnectionState::Connecting
+                || state == Vpn::ConnectionState::Reconnecting) {
+            m_coreController->m_connectionController->restoreConnection();
+        }
+
+        m_coreController->m_connectionController->setConnectionState(state);
         m_coreController->m_connectionUiController->onConnectionStateChanged(state);
-        m_coreController->m_connectionController->restoreConnection();
     });
     connect(AndroidController::instance(), &AndroidController::importConfigFromOutside, this, [this](QString data) {
         emit m_coreController->m_pageController->goToPageHome();

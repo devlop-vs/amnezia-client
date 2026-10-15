@@ -3,6 +3,8 @@
 
 #include <QFile>
 
+#include "platforms/apple/oauthlauncher.h"
+
 
 @implementation QIOSApplicationDelegate (AmneziaVPNDelegate)
 #if !MACOS_NE
@@ -35,6 +37,14 @@
 - (BOOL)application:(UIApplication *)app
             openURL:(NSURL *)url
             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+    Q_UNUSED(app);
+    Q_UNUSED(options);
+
+    if (url && [url.scheme isEqualToString:@"amnezia"] && [url.host isEqualToString:@"oauth"]) {
+        OAuthLauncher::instance()->notifyCallbackReceived(QString::fromUtf8(url.absoluteString.UTF8String));
+        return YES;
+    }
+
     if (url.fileURL) {
         QString filePath(url.path.UTF8String);
         if (filePath.isEmpty()) return NO;

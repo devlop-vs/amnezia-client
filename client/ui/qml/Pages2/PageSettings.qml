@@ -14,6 +14,17 @@ import "../Config"
 PageType {
     id: root
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     Connections {
         target: ApiNewsController
         function onFetchNewsFinished() {
@@ -118,7 +129,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/server.svg"
         property bool isVisible: true
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageSettingsServersList)
+            root.openPageCompatible(PageEnum.PageSettingsServersList)
         }
     }
 
@@ -129,7 +140,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/radio.svg"
         property bool isVisible: true
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageSettingsConnection)
+            root.openPageCompatible(PageEnum.PageSettingsConnection)
         }
     }
 
@@ -140,7 +151,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/app.svg"
         property bool isVisible: true
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageSettingsApplication)
+            root.openPageCompatible(PageEnum.PageSettingsApplication)
         }
     }
 
@@ -156,7 +167,7 @@ PageType {
             }
             PageController.showBusyIndicator(true)
             ApiNewsController.fetchNews(true)
-            PageController.goToPage(PageEnum.PageSettingsNewsNotifications)
+            root.openPageCompatible(PageEnum.PageSettingsNewsNotifications)
         }
     }
 
@@ -167,7 +178,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/save.svg"
         property bool isVisible: true
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageSettingsBackup)
+            root.openPageCompatible(PageEnum.PageSettingsBackup)
         }
     }
 
@@ -178,7 +189,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/amnezia.svg"
         property bool isVisible: true
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageSettingsAbout)
+            root.openPageCompatible(PageEnum.PageSettingsAbout)
         }
     }
 
@@ -189,7 +200,7 @@ PageType {
         readonly property string leftImagePath: "qrc:/images/controls/bug.svg"
         property bool isVisible: SettingsController.isDevModeEnabled
         readonly property var clickedHandler: function() {
-            PageController.goToPage(PageEnum.PageDevMenu)
+            root.openPageCompatible(PageEnum.PageDevMenu)
         }
     }
 }

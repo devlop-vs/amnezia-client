@@ -15,14 +15,18 @@ RowLayout {
         Layout.fillWidth: true
         spacing: 11
         Text {
+            Layout.fillWidth: true
             text: "↓  Download"
             font { family: Theme.fontFamily; pixelSize: 12 }
             color: Theme.textLabel
+            horizontalAlignment: Text.AlignHCenter
         }
         Text {
+            Layout.fillWidth: true
             text: root.downloadSpeed
             font { family: Theme.fontFamily; pixelSize: 18; bold: true }
             color: Theme.textPrimary
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 
@@ -35,17 +39,20 @@ RowLayout {
 
     ColumnLayout {
         Layout.fillWidth: true
-        Layout.leftMargin: 24
         spacing: 11
         Text {
+            Layout.fillWidth: true
             text: "↑  Upload"
             font { family: Theme.fontFamily; pixelSize: 12 }
             color: Theme.textLabel
+            horizontalAlignment: Text.AlignHCenter
         }
         Text {
+            Layout.fillWidth: true
             text: root.uploadSpeed
             font { family: Theme.fontFamily; pixelSize: 18; bold: true }
             color: Theme.textPrimary
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

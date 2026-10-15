@@ -79,6 +79,12 @@ object Log {
     fun e(tag: String, msg: String) = log(tag, msg, E)
 
     @JvmStatic
+    fun w(tag: String, msg: String, tr: Throwable) = log(tag, "$msg\n${NativeLog.getStackTraceString(tr)}", W)
+
+    @JvmStatic
+    fun e(tag: String, msg: String, tr: Throwable) = log(tag, "$msg\n${NativeLog.getStackTraceString(tr)}", E)
+
+    @JvmStatic
     fun f(tag: String, msg: String) = log(tag, msg, F)
 
     fun v(tag: String, msg: Any?) = v(tag, msg.toString())
@@ -116,11 +122,8 @@ object Log {
 
         if (priority == F) {
             NativeLog.wtf(tag, msg)
-        } else if (
-            (priority != V && priority != D) ||
-            (priority == V && BuildConfig.DEBUG) ||
-            (priority == D && (BuildConfig.DEBUG || saveLogs))
-        ) {
+        } else {
+            // Debug: always forward every priority (incl. V/D) to logcat.
             NativeLog.println(priority.level, tag, msg)
         }
     }

@@ -11,6 +11,7 @@ import "Config"
 import "Controls2"
 import "Components"
 import "Pages2"
+import "RedaVia"
 
 Window  {
     id: root
@@ -160,10 +161,104 @@ Window  {
         }
     }
 
-    PageStartRedaVia {
-        objectName: "pageStartRedaVia"
-        width: root.width
-        height: root.height
+    Loader {
+        id: startupPageLoader
+        objectName: "startupPageLoader"
+        anchors.fill: parent
+        sourceComponent: AuthController.hasRegisteredAccount
+                         ? startPageComponent
+                         : onboardingPageComponent
+    }
+
+    Component {
+        id: onboardingPageComponent
+
+        Item {
+            width: root.width
+            height: root.height
+
+            Connections {
+                target: AuthController
+
+                function onLoginStarted() {
+                    PageController.showBusyIndicator(true)
+                }
+
+                function onLoginSuccess(email) {
+                    PageController.showBusyIndicator(false)
+                }
+
+                function onLoginCanceled() {
+                    PageController.showBusyIndicator(false)
+                }
+
+                function onLoginFailed(error) {
+                    PageController.showBusyIndicator(false)
+                    PageController.showErrorMessage(error)
+                }
+            }
+
+            StackView {
+                id: onboardingStack
+                anchors.fill: parent
+                initialItem: welcomePage
+            }
+
+            Component {
+                id: welcomePage
+
+                OnboardingPage {
+                    width: root.width
+                    height: root.height
+
+                    onGetStartedClicked: onboardingStack.push(onboardingSlide1Page)
+                }
+            }
+
+            Component {
+                id: onboardingSlide1Page
+
+                Onboarding_slide_1 {
+                    width: root.width
+                    height: root.height
+
+                    onNextClicked: onboardingStack.push(onboardingSlide2Page)
+                }
+            }
+
+            Component {
+                id: onboardingSlide2Page
+
+                Onboarding_slide_2 {
+                    width: root.width
+                    height: root.height
+
+                    onNextClicked: onboardingStack.push(onboardingSlide3Page)
+                }
+            }
+
+            Component {
+                id: onboardingSlide3Page
+
+                Onboarding_slide_3 {
+                    width: root.width
+                    height: root.height
+
+                    onSignUpClicked: AuthController.startOAuthSignup()
+                    onSignInClicked: AuthController.startOAuthLogin()
+                }
+            }
+        }
+    }
+
+    Component {
+        id: startPageComponent
+
+        PageStartRedaVia {
+            objectName: "pageStartRedaVia"
+            width: root.width
+            height: root.height
+        }
     }
 
     Item {

@@ -8,6 +8,7 @@
 #include <QUrlQuery>
 #include <QDebug>
 
+#include "platforms/apple/oauthlauncher.h"
 #include "secureQSettings.h"
 
 const QString AuthController::kAuthBaseUrl = QStringLiteral("http://104.160.47.217:38080");
@@ -17,16 +18,30 @@ const QString AuthController::kRedirectUri = QStringLiteral("amnezia://oauth/cal
 AuthController::AuthController(SecureQSettings *settings, QNetworkAccessManager *nam, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(nam)
 {
+    auto *launcher = OAuthLauncher::instance();
+    connect(launcher, &OAuthLauncher::callbackReceived,
+        this, &AuthController::handleOAuthCallback);
+    connect(launcher, &OAuthLauncher::loginCanceled,
+        this, &AuthController::loginCanceled);
+    connect(launcher, &OAuthLauncher::launchFailed,
+        this, &AuthController::loginFailed);
+
     // Restore saved login state
     m_accessToken = m_settings->value("Auth/accessToken").toString();
     m_refreshToken = m_settings->value("Auth/refreshToken").toString();
     m_userEmail = m_settings->value("Auth/userEmail").toString();
     m_userId = m_settings->value("Auth/userId").toString();
+    m_hasRegisteredAccount = m_settings->value("Auth/hasRegisteredAccount", !m_userEmail.isEmpty()).toBool();
 }
 
 bool AuthController::isLoggedIn() const
 {
     return !m_accessToken.isEmpty() && !m_userEmail.isEmpty();
+}
+
+bool AuthController::hasRegisteredAccount() const
+{
+    return m_hasRegisteredAccount;
 }
 
 QString AuthController::userEmail() const
@@ -71,6 +86,50 @@ QString AuthController::getLoginUrl()
     url.setQuery(query);
 
     return url.toString();
+}
+
+QString AuthController::getSignupUrl()
+{
+    m_oauthState = generateState();
+    m_codeVerifier = generateCodeVerifier();
+
+    QUrl url(kAuthBaseUrl + "/static_reda/signup.html");
+    QUrlQuery query;
+    query.addQueryItem("state", m_oauthState);
+    query.addQueryItem("client_id", kClientId);
+    query.addQueryItem("redirect_uri", kRedirectUri);
+    query.addQueryItem("code_verifier", m_codeVerifier);
+    url.setQuery(query);
+
+    return url.toString();
+}
+
+void AuthController::startOAuthLogin()
+{
+    const QUrl loginUrl(getLoginUrl());
+    QString errorMessage;
+
+    emit loginStarted();
+
+    if (!OAuthLauncher::instance()->start(loginUrl, &errorMessage)) {
+        emit loginFailed(errorMessage.isEmpty()
+                             ? QStringLiteral("Failed to open OAuth login page")
+                             : errorMessage);
+    }
+}
+
+void AuthController::startOAuthSignup()
+{
+    const QUrl signupUrl(getSignupUrl());
+    QString errorMessage;
+
+    emit loginStarted();
+
+    if (!OAuthLauncher::instance()->start(signupUrl, &errorMessage)) {
+        emit loginFailed(errorMessage.isEmpty()
+                             ? QStringLiteral("Failed to open OAuth signup page")
+                             : errorMessage);
+    }
 }
 
 void AuthController::handleOAuthCallback(const QString &urlString)
@@ -166,6 +225,9 @@ void AuthController::exchangeCodeForToken(const QString &code, const QString &st
             return;
         }
 
+        m_oauthState.clear();
+        m_codeVerifier.clear();
+
         // Save tokens
         m_settings->setValue("Auth/accessToken", m_accessToken);
         m_settings->setValue("Auth/refreshToken", m_refreshToken);
@@ -213,6 +275,8 @@ void AuthController::fetchUserInfo(const QString &accessToken)
         // Save user info
         m_settings->setValue("Auth/userId", m_userId);
         m_settings->setValue("Auth/userEmail", m_userEmail);
+        m_hasRegisteredAccount = true;
+        m_settings->setValue("Auth/hasRegisteredAccount", true);
 
         emit userInfoChanged();
         emit loginStateChanged();

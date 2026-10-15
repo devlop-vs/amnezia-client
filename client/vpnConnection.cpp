@@ -38,6 +38,13 @@ using namespace ProtocolUtils;
 VpnConnection::VpnConnection(SecureServersRepository* serversRepository, SecureAppSettingsRepository* appSettingsRepository, QObject *parent)
     : QObject(parent), m_serversRepository(serversRepository), m_appSettingsRepository(appSettingsRepository), m_checkTimer(this)
 {
+#ifdef Q_OS_ANDROID
+    connect(AndroidController::instance(), &AndroidController::connectionStateChanged,
+            this, &VpnConnection::setConnectionState, Qt::QueuedConnection);
+    connect(AndroidController::instance(), &AndroidController::statisticsUpdated,
+            this, &VpnConnection::onBytesChanged, Qt::QueuedConnection);
+#endif
+
 #if defined(Q_OS_IOS) || defined(MACOS_NE)
     m_checkTimer.setInterval(1000);
     connect(IosController::Instance(), &IosController::connectionStateChanged, this, &VpnConnection::setConnectionState);
@@ -51,6 +58,7 @@ VpnConnection::~VpnConnection()
 
 void VpnConnection::onBytesChanged(quint64 receivedBytes, quint64 sentBytes)
 {
+    qDebug() << "VPN traffic speed update rx=" << receivedBytes << "tx=" << sentBytes;
     emit bytesChanged(receivedBytes, sentBytes);
 }
 
@@ -323,10 +331,7 @@ void VpnConnection::connectToVpn(const QString &serverId, DockerContainer contai
     }
     m_vpnProtocol->prepare();
 #elif defined Q_OS_ANDROID
-    androidVpnProtocol = createDefaultAndroidVpnProtocol();
-    createAndroidConnections();
-
-    m_vpnProtocol.reset(androidVpnProtocol);
+    m_vpnProtocol.reset(createDefaultAndroidVpnProtocol());
 #elif defined Q_OS_IOS || defined(MACOS_NE)
     Proto proto = ContainerUtils::defaultProtocol(container);
     IosController::Instance()->connectVpn(proto, m_vpnConfiguration);
@@ -486,20 +491,9 @@ void VpnConnection::appendSplitTunnelingConfig()
 #ifdef Q_OS_ANDROID
 void VpnConnection::restoreConnection()
 {
-    createAndroidConnections();
-
-    m_vpnProtocol.reset(androidVpnProtocol);
+    m_vpnProtocol.reset(createDefaultAndroidVpnProtocol());
 
     createProtocolConnections();
-}
-
-void VpnConnection::createAndroidConnections()
-{
-    androidVpnProtocol = createDefaultAndroidVpnProtocol();
-
-    connect(AndroidController::instance(), &AndroidController::connectionStateChanged, androidVpnProtocol,
-            &AndroidVpnProtocol::setConnectionState);
-    connect(AndroidController::instance(), &AndroidController::statisticsUpdated, androidVpnProtocol, &AndroidVpnProtocol::setBytesChanged);
 }
 
 AndroidVpnProtocol *VpnConnection::createDefaultAndroidVpnProtocol()
@@ -510,7 +504,12 @@ AndroidVpnProtocol *VpnConnection::createDefaultAndroidVpnProtocol()
 
 QString VpnConnection::bytesPerSecToText(quint64 bytes)
 {
-    double mbps = bytes * 8 / 1e6;
+    const double kbps = bytes * 8 / 1e3;
+    if (kbps <= 500.0) {
+        return QString("%1 %2").arg(QString::number(kbps, 'f', 0)).arg(tr("kbps")); // Kbit/s
+    }
+
+    const double mbps = bytes * 8 / 1e6;
     return QString("%1 %2").arg(QString::number(mbps, 'f', 2)).arg(tr("Mbps")); // Mbit/s
 }
 
@@ -549,18 +548,6 @@ void VpnConnection::disconnectFromVpn()
     }
 
     setConnectionState(Vpn::ConnectionState::Disconnecting);
-
-#ifdef Q_OS_ANDROID
-    auto *const connection = new QMetaObject::Connection;
-    *connection = connect(AndroidController::instance(), &AndroidController::vpnStateChanged, this,
-                          [this, connection](AndroidController::ConnectionState state) {
-                              if (state == AndroidController::ConnectionState::DISCONNECTED) {
-                                  setConnectionState(Vpn::ConnectionState::Disconnected);
-                                  disconnect(*connection);
-                                  delete connection;
-                              }
-                          });
-#endif
 
     m_vpnProtocol->stop();
 

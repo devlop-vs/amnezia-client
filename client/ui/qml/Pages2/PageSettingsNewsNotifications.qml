@@ -13,6 +13,17 @@ import "../Config"
 PageType {
     id: root
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     ColumnLayout {
         id: header
         anchors.top: parent.top
@@ -73,7 +84,7 @@ PageType {
                             NewsModel.markAsRead(index)
                         }
                         NewsModel.processedIndex = index
-                        PageController.goToPage(PageEnum.PageSettingsNewsDetail)
+                        root.openPageCompatible(PageEnum.PageSettingsNewsDetail)
                     }
                 }
 

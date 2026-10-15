@@ -11,6 +11,7 @@ class AuthController : public QObject
     Q_OBJECT
 
     Q_PROPERTY(bool isLoggedIn READ isLoggedIn NOTIFY loginStateChanged)
+    Q_PROPERTY(bool hasRegisteredAccount READ hasRegisteredAccount NOTIFY loginStateChanged)
     Q_PROPERTY(QString userEmail READ userEmail NOTIFY userInfoChanged)
     Q_PROPERTY(QString userId READ userId NOTIFY userInfoChanged)
 
@@ -19,10 +20,14 @@ public:
                             QObject *parent = nullptr);
 
     bool isLoggedIn() const;
+    bool hasRegisteredAccount() const;
     QString userEmail() const;
     QString userId() const;
 
     Q_INVOKABLE QString getLoginUrl();
+    Q_INVOKABLE QString getSignupUrl();
+    Q_INVOKABLE void startOAuthLogin();
+    Q_INVOKABLE void startOAuthSignup();
     Q_INVOKABLE void handleOAuthCallback(const QString &url);
     Q_INVOKABLE void logout();
 
@@ -31,6 +36,8 @@ public:
 signals:
     void loginStateChanged();
     void userInfoChanged();
+    void loginStarted();
+    void loginCanceled();
     void loginSuccess(const QString &email);
     void loginFailed(const QString &error);
 
@@ -49,6 +56,7 @@ private:
     QString m_refreshToken;
     QString m_userEmail;
     QString m_userId;
+    bool m_hasRegisteredAccount = false;
 
     static const QString kAuthBaseUrl;
     static const QString kClientId;

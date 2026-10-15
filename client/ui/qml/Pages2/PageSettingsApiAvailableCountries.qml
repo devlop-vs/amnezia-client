@@ -17,6 +17,17 @@ import "../Components"
 PageType {
     id: root
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     property var processedServer
     property bool subscriptionExpired: false
     property bool subscriptionExpiringSoon: false
@@ -132,7 +143,7 @@ PageType {
                         return
                     }
 
-                    PageController.goToPage(PageEnum.PageSettingsApiServerInfo)
+                    root.openPageCompatible(PageEnum.PageSettingsApiServerInfo)
                 }
             }
 

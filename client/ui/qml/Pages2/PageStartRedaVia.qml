@@ -79,6 +79,25 @@ PageType {
     }
 
     Connections {
+        target: SubscriptionUiController
+
+        function onInstallServerFromApiFinished(message, preferredDefaultIndex) {
+            PageController.goToPageHome()
+            PageController.showNotificationMessage(message)
+        }
+
+        function onChangeApiCountryFinished(message) {
+            PageController.goToPageHome()
+            PageController.showNotificationMessage(message)
+        }
+
+        function onReloadServerFromApiFinished(message) {
+            PageController.goToPageHome()
+            PageController.showNotificationMessage(message)
+        }
+    }
+
+    Connections {
         target: SettingsController
 
         function onRestoreBackupFinished() {

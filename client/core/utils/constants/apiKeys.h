@@ -26,6 +26,7 @@ namespace apiDefs
         constexpr QLatin1String userCountryCode("user_country_code");
         constexpr QLatin1String serverCountryCode("server_country_code");
         constexpr QLatin1String serverCountryName("server_country_name");
+        constexpr QLatin1String serverCityName("server_city_name");
         constexpr QLatin1String appVersion("app_version");
         constexpr QLatin1String authData("auth_data");
 
@@ -62,6 +63,10 @@ namespace apiDefs
 
         constexpr QLatin1String id("id");
         constexpr QLatin1String orderId("order_id");
+        constexpr QLatin1String purchaseToken("purchase_token");
+        constexpr QLatin1String storeProductId("store_product_id");
+        constexpr QLatin1String storeProductType("store_product_type");
+        constexpr QLatin1String googlePlayBasePlanId("google_play_base_plan_id");
         constexpr QLatin1String migrationCode("migration_code");
         constexpr QLatin1String transactionId("transaction_id");
         constexpr QLatin1String isTestPurchase("is_test_purchase");

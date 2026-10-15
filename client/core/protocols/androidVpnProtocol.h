@@ -15,6 +15,9 @@ public:
 
     ErrorCode start() override;
     void stop() override;
+
+public slots:
+    void setSpeedChanged(quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
 };
 
 #endif // ANDROID_VPNPROTOCOL_H

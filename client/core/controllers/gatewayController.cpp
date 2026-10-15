@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QPromise>
+#include <QTimer>
 #include <QUrl>
 
 #include "QBlockCipher.h"
@@ -221,7 +222,7 @@ GatewayController::DecryptionResult GatewayController::tryDecryptResponseBody(co
 ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject apiPayload, QByteArray &responseBody)
 {
     qDebug().noquote() << "[GatewayController::post] Endpoint:" << endpoint;
-    qDebug().noquote() << "[GatewayController::post] API payload:" << QJsonDocument(apiPayload).toJson(QJsonDocument::Compact);
+    qDebug().noquote() << "[GatewayController::post] API payload keys:" << apiPayload.keys();
     qDebug().noquote() << "[GatewayController::post] Gateway endpoint:" << m_gatewayEndpoint;
     qDebug().noquote() << "[GatewayController::post] Is dev env:" << m_isDevEnvironment;
 
@@ -237,11 +238,29 @@ ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject api
     QNetworkReply *reply = amnApp->networkManager()->post(encRequestData.request, encRequestData.requestBody);
 
     QEventLoop wait;
+    QTimer hardTimeoutTimer;
+    hardTimeoutTimer.setSingleShot(true);
+    bool hardTimeoutReached = false;
     connect(reply, &QNetworkReply::finished, &wait, &QEventLoop::quit);
+    connect(&hardTimeoutTimer, &QTimer::timeout, &wait, [&wait, reply, &hardTimeoutReached]() {
+        hardTimeoutReached = true;
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+        wait.quit();
+    });
 
     QList<QSslError> sslErrors;
     connect(reply, &QNetworkReply::sslErrors, [this, &sslErrors](const QList<QSslError> &errors) { sslErrors = errors; });
+    hardTimeoutTimer.start(m_requestTimeoutMsecs);
     wait.exec(QEventLoop::ExcludeUserInputEvents);
+    hardTimeoutTimer.stop();
+
+    if (hardTimeoutReached) {
+        qWarning().noquote() << "[GatewayController::post] Request timed out after" << m_requestTimeoutMsecs << "ms";
+        reply->deleteLater();
+        return ErrorCode::ApiConfigTimeoutError;
+    }
 
     QByteArray encryptedResponseBody = reply->readAll();
     QString replyErrorString = reply->errorString();
@@ -250,18 +269,22 @@ ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject api
 
     reply->deleteLater();
 
+    if (replyError == QNetworkReply::NetworkError::OperationCanceledError
+        || replyError == QNetworkReply::NetworkError::TimeoutError) {
+        qWarning().noquote() << "[GatewayController::post] Request timed out:" << replyError << replyErrorString;
+        return ErrorCode::ApiConfigTimeoutError;
+    }
+
     qDebug().noquote() << "[GatewayController::post] HTTP status code:" << httpStatusCode;
     qDebug().noquote() << "[GatewayController::post] Reply error:" << replyError << replyErrorString;
     qDebug().noquote() << "[GatewayController::post] SSL errors count:" << sslErrors.size();
     qDebug().noquote() << "[GatewayController::post] Encrypted response body size:" << encryptedResponseBody.size();
-    qDebug().noquote() << "[GatewayController::post] Encrypted response body (hex, first 128 bytes):" << encryptedResponseBody.left(128).toHex();
 
     auto decryptionResult =
             tryDecryptResponseBody(encryptedResponseBody, replyError, encRequestData.key, encRequestData.iv, encRequestData.salt);
 
     qDebug().noquote() << "[GatewayController::post] Decryption successful:" << decryptionResult.isDecryptionSuccessful;
     qDebug().noquote() << "[GatewayController::post] Decrypted body size:" << decryptionResult.decryptedBody.size();
-    qDebug().noquote() << "[GatewayController::post] Decrypted body (first 2048 bytes):" << decryptionResult.decryptedBody.left(2048);
 
     if (sslErrors.isEmpty() && shouldBypassProxy(replyError, decryptionResult.decryptedBody, decryptionResult.isDecryptionSuccessful)) {
         auto requestFunction = [&encRequestData, &encryptedResponseBody](const QString &url) {
@@ -306,7 +329,7 @@ ErrorCode GatewayController::post(const QString &endpoint, const QJsonObject api
         return ErrorCode::ApiConfigDecryptionError;
     }
 
-    qDebug().noquote() << "[GatewayController::post] Success, final response body:" << responseBody.left(2048);
+    qDebug().noquote() << "[GatewayController::post] Success, response body size:" << responseBody.size();
     return ErrorCode::NoError;
 }
 

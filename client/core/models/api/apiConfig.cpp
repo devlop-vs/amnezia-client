@@ -9,6 +9,15 @@
 namespace amnezia
 {
 
+namespace
+{
+const QLatin1String clientIdentityKey("client_identity");
+const QLatin1String wireGuardClientPrivKeyKey("wireguard_client_priv_key");
+const QLatin1String wireGuardClientPubKeyKey("wireguard_client_pub_key");
+const QLatin1String wireGuardClientIdKey("wireguard_client_id");
+const QLatin1String vlessUuidKey("vless_uuid");
+}
+
 QJsonObject ApiConfig::Subscription::toJson() const
 {
     QJsonObject obj;
@@ -67,6 +76,34 @@ ApiConfig::PublicKeyInfo ApiConfig::PublicKeyInfo::fromJson(const QJsonObject& j
     PublicKeyInfo info;
     info.expiresAt = json.value(apiDefs::key::expiresAt).toString();
     return info;
+}
+
+QJsonObject ApiConfig::ClientIdentity::toJson() const
+{
+    QJsonObject obj;
+    if (!wireGuardClientPrivKey.isEmpty()) {
+        obj[wireGuardClientPrivKeyKey] = wireGuardClientPrivKey;
+    }
+    if (!wireGuardClientPubKey.isEmpty()) {
+        obj[wireGuardClientPubKeyKey] = wireGuardClientPubKey;
+    }
+    if (!wireGuardClientId.isEmpty()) {
+        obj[wireGuardClientIdKey] = wireGuardClientId;
+    }
+    if (!vlessUuid.isEmpty()) {
+        obj[vlessUuidKey] = vlessUuid;
+    }
+    return obj;
+}
+
+ApiConfig::ClientIdentity ApiConfig::ClientIdentity::fromJson(const QJsonObject& json)
+{
+    ClientIdentity identity;
+    identity.wireGuardClientPrivKey = json.value(wireGuardClientPrivKeyKey).toString();
+    identity.wireGuardClientPubKey = json.value(wireGuardClientPubKeyKey).toString();
+    identity.wireGuardClientId = json.value(wireGuardClientIdKey).toString();
+    identity.vlessUuid = json.value(vlessUuidKey).toString();
+    return identity;
 }
 
 bool ApiConfig::isPremium() const
@@ -157,6 +194,11 @@ QJsonObject ApiConfig::toJson() const
     if (!publicKeyObj.isEmpty()) {
         obj[apiDefs::key::publicKey] = publicKeyObj;
     }
+
+    QJsonObject clientIdentityObj = clientIdentity.toJson();
+    if (!clientIdentityObj.isEmpty()) {
+        obj[clientIdentityKey] = clientIdentityObj;
+    }
     
     if (!stackType.isEmpty()) {
         obj[apiDefs::key::stackType] = stackType;
@@ -208,6 +250,11 @@ ApiConfig ApiConfig::fromJson(const QJsonObject& json)
     QJsonObject publicKeyObj = json.value(apiDefs::key::publicKey).toObject();
     if (!publicKeyObj.isEmpty()) {
         config.publicKey = PublicKeyInfo::fromJson(publicKeyObj);
+    }
+
+    QJsonObject clientIdentityObj = json.value(clientIdentityKey).toObject();
+    if (!clientIdentityObj.isEmpty()) {
+        config.clientIdentity = ClientIdentity::fromJson(clientIdentityObj);
     }
     
     config.stackType = json.value(apiDefs::key::stackType).toString();

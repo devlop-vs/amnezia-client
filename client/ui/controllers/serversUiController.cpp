@@ -37,6 +37,42 @@ const ServerDescription &emptyServerDescription()
     static const ServerDescription s_emptyDescription;
     return s_emptyDescription;
 }
+
+QString normalizeProtocolName(const QString &protocolName)
+{
+    const QString protocol = protocolName.trimmed().toLower();
+    if (protocol == QLatin1String("wireguard") || protocol == QLatin1String("wg")) {
+        return QStringLiteral("wireguard");
+    }
+    if (protocol == QLatin1String("awg") || protocol == QLatin1String("amneziawg")) {
+        return QStringLiteral("awg");
+    }
+    if (protocol == QLatin1String("vless") || protocol == QLatin1String("xray")) {
+        return QStringLiteral("vless");
+    }
+    if (protocol == QLatin1String("openvpn") || protocol == QLatin1String("ovpn")) {
+        return QStringLiteral("openvpn");
+    }
+    return protocol;
+}
+
+QList<DockerContainer> protocolContainers(const QString &protocolName)
+{
+    const QString protocol = normalizeProtocolName(protocolName);
+    if (protocol == QLatin1String("wireguard")) {
+        return { DockerContainer::WireGuard };
+    }
+    if (protocol == QLatin1String("awg")) {
+        return { DockerContainer::Awg2, DockerContainer::Awg, DockerContainer::WireGuard };
+    }
+    if (protocol == QLatin1String("openvpn")) {
+        return { DockerContainer::OpenVpn };
+    }
+    if (protocol == QLatin1String("vless")) {
+        return { DockerContainer::Xray };
+    }
+    return {};
+}
 } // namespace
 ServersUiController::ServersUiController(ServersController* serversController,
                                          SettingsController* settingsController,
@@ -212,6 +248,27 @@ QString ServersUiController::getDefaultServerImagePathCollapsed() const
 QString ServersUiController::getDefaultServerDescriptionExpanded() const
 {
     return serverDescriptionById(getDefaultServerId()).expandedServerDescription;
+}
+
+QString ServersUiController::getDefaultServerApiCountryCode() const
+{
+    return serverDescriptionById(getDefaultServerId()).apiServerCountryCode;
+}
+
+QString ServersUiController::getDefaultServerApiCountryName() const
+{
+    return serverDescriptionById(getDefaultServerId()).baseDescription;
+}
+
+QString ServersUiController::getDefaultServerApiServiceProtocol() const
+{
+    const QString defaultServerId = getDefaultServerId();
+    if (defaultServerId.isEmpty()) {
+        return QString();
+    }
+
+    const auto apiV2 = m_serversController->apiV2Config(defaultServerId);
+    return apiV2.has_value() ? apiV2->serviceProtocol() : QString();
 }
 
 bool ServersUiController::isDefaultServerDefaultContainerHasSplitTunneling() const
@@ -517,6 +574,41 @@ QStringList ServersUiController::getAllInstalledServicesName(int serverIndex) co
     }
     servicesName.sort();
     return servicesName;
+}
+
+int ServersUiController::defaultServerContainerForProtocol(const QString &protocolName) const
+{
+    const QString serverId = m_serversController->getDefaultServerId();
+    if (serverId.isEmpty()) {
+        return -1;
+    }
+
+    const QMap<DockerContainer, ContainerConfig> containers = m_serversController->getServerContainersMap(serverId);
+    for (DockerContainer container : protocolContainers(protocolName)) {
+        if (containers.contains(container) && ContainerUtils::containerService(container) == ServiceType::Vpn
+            && ContainerUtils::isSupportedByCurrentPlatform(container)) {
+            return static_cast<int>(container);
+        }
+    }
+
+    return -1;
+}
+
+bool ServersUiController::hasDefaultServerContainerForProtocol(const QString &protocolName) const
+{
+    return defaultServerContainerForProtocol(protocolName) >= 0;
+}
+
+bool ServersUiController::setDefaultServerContainerForProtocol(const QString &protocolName)
+{
+    const QString serverId = m_serversController->getDefaultServerId();
+    const int containerIndex = defaultServerContainerForProtocol(protocolName);
+    if (serverId.isEmpty() || containerIndex < 0) {
+        return false;
+    }
+
+    setDefaultContainer(serverId, containerIndex);
+    return true;
 }
 
 int ServersUiController::serverIndexForId(const QString &serverId) const

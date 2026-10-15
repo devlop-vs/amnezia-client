@@ -36,4 +36,25 @@ object QtAndroidController {
 
     external fun onActivityPaused()
     external fun onActivityResumed()
+
+    external fun onGooglePlayProductDetails(
+        success: Boolean,
+        productId: String,
+        productType: String,
+        googlePlayBasePlanId: String,
+        priceLabel: String,
+        subtitleLabel: String,
+        monthlyPriceLabel: String,
+        monthlyPriceAmountMicros: Long,
+        errorMessage: String
+    )
+
+    external fun onGooglePlayPurchaseCompleted(
+        success: Boolean,
+        purchaseToken: String,
+        productId: String,
+        productType: String,
+        orderId: String,
+        errorMessage: String
+    )
 }

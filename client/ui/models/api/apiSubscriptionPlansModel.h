@@ -18,7 +18,9 @@ public:
         CheckoutUrlRole,
         IsTrialRole,
         ServiceProtocolRole,
-        StoreProductIdRole
+        StoreProductIdRole,
+        StoreProductTypeRole,
+        GooglePlayBasePlanIdRole
     };
     Q_ENUM(Roles)
 
@@ -30,6 +32,11 @@ public:
 
     void updateModel(const QJsonArray &arr);
     void clear();
+    void updatePriceLabel(const QString &storeProductId, const QString &storeProductType,
+                          const QString &googlePlayBasePlanId, const QString &priceLabel);
+    void updatePricingDetails(const QString &storeProductId, const QString &storeProductType,
+                              const QString &googlePlayBasePlanId, const QString &priceLabel,
+                              const QString &subtitle);
 
     Q_INVOKABLE QVariantMap planAt(int row) const;
     Q_INVOKABLE int recommendedRowIndex() const;
@@ -45,6 +52,8 @@ private:
         bool isTrial = false;
         QString serviceProtocol;
         QString storeProductId;
+        QString storeProductType;
+        QString googlePlayBasePlanId;
     };
 
     QVector<SubscriptionPlanItem> m_subscriptionPlans;

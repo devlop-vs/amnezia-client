@@ -34,6 +34,12 @@ namespace
         return value.isString() ? value.toString().trimmed() : QString();
     }
 
+    QString apiErrorCodeFromJson(const QJsonObject &jsonObj)
+    {
+        const QJsonValue value = jsonObj.value(QStringLiteral("error"));
+        return value.isString() ? value.toString().trimmed() : QString();
+    }
+
     QString escapeUnicode(const QString &input)
     {
         QString output;
@@ -117,6 +123,9 @@ amnezia::ErrorCode apiUtils::checkNetworkReplyErrors(const QList<QSslError> &ssl
             return amnezia::ErrorCode::ApiConfigLimitError;
         }
         if (httpStatusFromBody == httpStatusCodeNotFound) {
+            if (apiErrorCodeFromJson(jsonObj).compare(QLatin1String("vpn_config_not_found"), Qt::CaseInsensitive) == 0) {
+                return amnezia::ErrorCode::ApiVpnConfigNotFoundError;
+            }
             return amnezia::ErrorCode::ApiNotFoundError;
         }
         if (httpStatusFromBody == httpStatusCodeRequestTimeout) {

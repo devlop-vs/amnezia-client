@@ -24,6 +24,7 @@ public:
         QString certPrivKey;
         QString wireGuardClientPrivKey;
         QString wireGuardClientPubKey;
+        QString wireGuardClientId;
         QString xrayUuid;
     };
 
@@ -35,6 +36,7 @@ public:
         QString installationUuid;
         QString userCountryCode;
         QString serverCountryCode;
+        QString serverCityName;
         QString serviceType;
         QString serviceProtocol;
         QJsonObject authData;
@@ -53,7 +55,7 @@ public:
                                      SecureAppSettingsRepository* appSettingsRepository);
 
     ProtocolData generateProtocolData(const QString &protocol);
-    void appendProtocolDataToApiPayload(const QString &protocol, const ProtocolData &protocolData, QJsonObject &apiPayload);
+    void appendProtocolDataToApiPayload(const QString &protocol, const ProtocolData &protocolData, QJsonObject &apiPayload) const;
 
     ErrorCode importServiceFromGateway(const QString &userCountryCode, const QString &serviceType,
                                       const QString &serviceProtocol, const ProtocolData &protocolData,
@@ -66,7 +68,22 @@ public:
                                         const QString &transactionId, bool isTestPurchase,
                                         int *duplicateServerIndex = nullptr);
 
-    ErrorCode updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent);
+    ErrorCode importServiceFromGooglePlay(const QString &userCountryCode, const QString &serviceType,
+                                          const QString &serviceProtocol, const ProtocolData &protocolData,
+                                          const QString &userId,
+                                          const QString &obfuscatedAccountId,
+                                          const QString &purchaseToken, const QString &storeProductId,
+                                          const QString &storeProductType,
+                                          const QString &googlePlayBasePlanId,
+                                          const QString &orderId,
+                                          int *duplicateServerIndex = nullptr);
+
+    ErrorCode updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent,
+                                       const QString &newCityName = QString(),
+                                       const QString &serviceProtocolOverride = QString(), bool resetClientIdentity = false,
+                                       const QString &newCountryName = QString());
+
+    ErrorCode resetServiceClientIdentity(const QString &serverId, QString *serverMessage = nullptr);
 
     ErrorCode deactivateDevice(const QString &serverId);
 
@@ -79,6 +96,7 @@ public:
     ErrorCode prepareVpnKeyExport(const QString &serverId, QString &vpnKey);
 
     ErrorCode validateAndUpdateConfig(const QString &serverId, bool hasInstalledContainers);
+    ErrorCode refreshWireGuardConfigForConnection(const QString &serverId);
 
     void removeApiConfig(const QString &serverId);
 
@@ -103,6 +121,12 @@ public:
                                      const QString &serviceProtocol, const QString &productId,
                                      int *duplicateServerIndex = nullptr);
 
+    ErrorCode processGooglePlayPurchase(const QString &userCountryCode, const QString &serviceType,
+                                        const QString &serviceProtocol, const QString &productId,
+                                        const QString &productType,
+                                        const QString &googlePlayBasePlanId,
+                                        int *duplicateServerIndex = nullptr);
+
     AppStoreRestoreResult processAppStoreRestore(const QString &userCountryCode, const QString &serviceType,
                                                   const QString &serviceProtocol);
 
@@ -112,14 +136,18 @@ public:
                                           CaptchaInfo *retryCaptchaOut = nullptr);
 
 private:
-    ErrorCode executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody, bool isTestPurchase = false);
+    QJsonObject authDataWithUserEmail(QJsonObject authData) const;
+    QString makeGooglePlayObfuscatedAccountId(const QString &userId) const;
+    ErrorCode executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody, bool isTestPurchase = false,
+                             int timeoutMsecs = -1);
     bool isApiKeyExpired(const QString &serverId) const;
     
     ErrorCode extractServerConfigJsonFromResponse(const QByteArray &apiResponseBody, const QString &protocol, 
                                                    const ProtocolData &protocolData, QJsonObject &serverConfigJson);
-    void updateApiConfigInJson(QJsonObject &serverConfigJson, const QString &serviceType, 
+    void updateApiConfigInJson(QJsonObject &serverConfigJson, const QString &serviceType,
                                 const QString &serviceProtocol, const QString &userCountryCode,
-                                const QByteArray &apiResponseBody);
+                                const QByteArray &apiResponseBody, const QString &serverCountryCode = QString(),
+                                const QString &serverCountryName = QString());
 
     SecureServersRepository* m_serversRepository;
     SecureAppSettingsRepository* m_appSettingsRepository;

@@ -66,6 +66,16 @@ target_include_directories(${PROJECT} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
+# Make custom source-tree QML modules visible not only to Qt Creator/runtime,
+# but also to Qt's deployment-time QML scanner that generates Android package
+# deployment settings. Without setting the target property, androiddeployqt's
+# "qml-import-paths" may miss our source module roots and report warnings such
+# as "import Style 1.0 could not be resolved" during "Generating Android Package".
+set_target_properties(${PROJECT} PROPERTIES
+    QT_QML_IMPORT_PATH
+        "${CMAKE_CURRENT_LIST_DIR}/ui/qml/Modules;${CMAKE_CURRENT_LIST_DIR}/ui/qml"
+)
+
 if(WIN32 OR (APPLE AND NOT IOS AND NOT MACOS_NE) OR (LINUX AND NOT ANDROID))
     qt_add_repc_replicas(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/../ipc/ipc_interface.rep)
     qt_add_repc_replicas(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/../ipc/ipc_process_interface.rep)
@@ -123,6 +133,13 @@ if(MACOS_NE)
     message("Add macros for MacOS Network Extension")
 else()
     message("MACOS_NE is OFF")
+endif()
+
+if(GPAY)
+    message("GPAY is ON")
+    add_definitions(-DGPAY)
+else()
+    message("GPAY is OFF")
 endif()
 
 include_directories(mozilla)

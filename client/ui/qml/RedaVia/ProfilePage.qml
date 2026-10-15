@@ -12,12 +12,114 @@ Rectangle {
 
     signal menuItemClicked(string item)
 
+    property string displayInitial: "?"
+    property string displayName: "Guest"
+    property string displaySubtitle: "Sign in to your account"
+
+    function reloadVpnConfigFromGateway() {
+        var serverId = ServersUiController.defaultServerId
+
+        if (serverId.length === 0) {
+            PageController.showNotificationMessage(qsTr("No VPN configuration installed"))
+            return
+        }
+        if (!ServersUiController.isServerFromApi(serverId)) {
+            PageController.showNotificationMessage(qsTr("Current VPN configuration cannot be reloaded from API"))
+            return
+        }
+        if (ConnectionController.isConnected) {
+            PageController.showNotificationMessage(qsTr("Cannot reload API config during active connection"))
+            return
+        }
+
+        console.log("[RedaVia] Reload VPN config from API for serverId:", serverId)
+        PageController.showBusyIndicator(true)
+        SubscriptionUiController.updateServiceFromGateway(serverId, "", "", true)
+        PageController.showBusyIndicator(false)
+    }
+
+    function resetVpnClientIdentityFromGateway() {
+        var serverId = ServersUiController.defaultServerId
+
+        if (serverId.length === 0) {
+            PageController.showNotificationMessage(qsTr("No VPN configuration installed"))
+            return
+        }
+        if (!ServersUiController.isServerFromApi(serverId)) {
+            PageController.showNotificationMessage(qsTr("Current VPN configuration cannot be reloaded from API"))
+            return
+        }
+        if (ConnectionController.isConnected) {
+            PageController.showNotificationMessage(qsTr("Cannot reload API config during active connection"))
+            return
+        }
+
+        console.log("[RedaVia] Reset VPN client identity from API for serverId:", serverId)
+        PageController.showBusyIndicator(true)
+        SubscriptionUiController.resetServiceClientIdentity(serverId)
+        PageController.showBusyIndicator(false)
+    }
+
+    function refreshProfileData() {
+        if (AuthController.isLoggedIn && AuthController.userEmail.length > 0) {
+            displayInitial = AuthController.userEmail.charAt(0).toUpperCase()
+            displayName = AuthController.userEmail.split("@")[0]
+            displaySubtitle = AuthController.userEmail
+        } else {
+            displayInitial = "?"
+            displayName = "Guest"
+            displaySubtitle = "Sign in to your account"
+        }
+    }
+
+    Component.onCompleted: refreshProfileData()
+
+    Connections {
+        target: AuthController
+
+        function onLoginSuccess(email) {
+            root.refreshProfileData()
+        }
+
+        function onLoginStateChanged() {
+            root.refreshProfileData()
+        }
+
+        function onUserInfoChanged() {
+            root.refreshProfileData()
+        }
+    }
+
+    Connections {
+        target: SubscriptionUiController
+
+        function onResetServiceClientIdentityFailed(message) {
+            PageController.showNotificationMessage(message)
+        }
+    }
+
     onMenuItemClicked: function(item) {
         if (item === "Account") {
             var sv = root.StackView.view
             if (sv) {
                 sv.push("qrc:/ui/qml/RedaVia/AccessPage.qml")
             }
+        } else if (item === "Auto Connect") {
+            var sv = root.StackView.view
+            if (sv) {
+                var pagePath = "qrc:/ui/qml/Pages2/PageSettings.qml"
+                sv.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
+            }
+        } else if (item === "Devices") {
+            root.reloadVpnConfigFromGateway()
+        } else if (item === "Kill Switch") {
+            var sv = root.StackView.view
+            if (sv) {
+                var pagePath = "qrc:/ui/qml/Pages2/PageSettingsKillSwitch.qml"
+                sv.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
+            }
+        } else if (item === "Reset") {
+            root.resetVpnClientIdentityFromGateway()
         }
     }
 
@@ -49,7 +151,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: AuthController.isLoggedIn ? AuthController.userEmail.charAt(0).toUpperCase() : "?"
+                    text: root.displayInitial
                     font { family: Theme.fontFamily; pixelSize: 27; bold: true }
                     color: Theme.textPrimary
                 }
@@ -59,7 +161,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 16
-            text: AuthController.isLoggedIn ? AuthController.userEmail.split("@")[0] : "Guest"
+            text: root.displayName
             font { family: Theme.fontFamily; pixelSize: 21; weight: Font.DemiBold }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -68,7 +170,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 6
-            text: AuthController.isLoggedIn ? AuthController.userEmail : "Sign in to your account"
+            text: root.displaySubtitle
             font { family: Theme.fontFamily; pixelSize: 13 }
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
@@ -86,7 +188,7 @@ Rectangle {
             clip: true
             interactive: false
 
-            model: ["Account", "Devices", "Protocol", "Auto Connect", "Kill Switch", "Language", "Appearance", "Help & About"]
+            model: ["Account", "Devices", "Protocol", "Auto Connect", "Kill Switch", "Reset", "Language", "Appearance", "Help & About"]
 
             delegate: Rectangle {
                 width: ListView.view.width

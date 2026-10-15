@@ -10,11 +10,16 @@
 #include "ui/controllers/systemController.h"
 #include "version.h"
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDebug>
 #include <QSet>
 #include <QEventLoop>
 #include <QFutureWatcher>
 #include <QTimer>
+
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+#include "platforms/android/android_controller.h"
+#endif
 
 namespace
 {
@@ -84,7 +89,58 @@ SubscriptionUiController::SubscriptionUiController(ServersController* serversCon
         ApiServicesModel::ApiServicesData selectedServiceData = m_apiServicesModel->selectedServiceData();
         m_apiSubscriptionPlansModel->updateModel(selectedServiceData.subscriptionPlansJson);
         m_apiBenefitsModel->updateModel(selectedServiceData.benefits);
+        m_googlePlayMonthlyPriceLabels.clear();
+
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+        for (const QJsonValue &planValue : selectedServiceData.subscriptionPlansJson) {
+            if (!planValue.isObject()) {
+                continue;
+            }
+
+            const QJsonObject planObject = planValue.toObject();
+            const QString productId = planObject.value(QStringLiteral("store_product_id")).toString().trimmed();
+            if (productId.isEmpty()) {
+                continue;
+            }
+
+            QString productType = planObject.value(QStringLiteral("store_product_type")).toString().trimmed().toLower();
+            if (productType.isEmpty()) {
+                productType = QStringLiteral("subs");
+            }
+
+            AndroidController::instance()->requestProductDetails(
+                productId,
+                productType,
+                planObject.value(QStringLiteral("google_play_base_plan_id")).toString().trimmed());
+        }
+#endif
     });
+
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+    connect(AndroidController::instance(), &AndroidController::googlePlayProductDetailsReceived, this,
+            [this](bool success, const QString &productId, const QString &productType,
+                   const QString &googlePlayBasePlanId, const QString &priceLabel,
+               const QString &subtitleLabel, const QString &monthlyPriceLabel,
+               qlonglong monthlyPriceAmountMicros,
+                   const QString &errorString) {
+                if (!success) {
+                    qWarning().noquote() << "[IAP][GooglePlay] Product details request failed:" << productId
+                                         << productType << googlePlayBasePlanId << errorString;
+                    return;
+                }
+
+                m_apiSubscriptionPlansModel->updatePricingDetails(productId, productType, googlePlayBasePlanId,
+                                                                  priceLabel, subtitleLabel);
+
+                const QString planKey = googlePlayPlanKey(productId, productType, googlePlayBasePlanId);
+                if (monthlyPriceLabel.isEmpty()) {
+                    m_googlePlayMonthlyPriceLabels.remove(planKey);
+                } else {
+                    m_googlePlayMonthlyPriceLabels.insert(planKey, { monthlyPriceLabel, monthlyPriceAmountMicros });
+                }
+                refreshGooglePlayMinPriceLabel();
+            });
+#endif
 
     connect(this, &SubscriptionUiController::installServerFromApiFinished, this,
             [this](const QString &, int preferredDefaultServerIndex) {
@@ -100,6 +156,46 @@ SubscriptionUiController::SubscriptionUiController(ServersController* serversCon
             m_serversController->setDefaultServer(serverId);
         }
     });
+}
+
+QString SubscriptionUiController::googlePlayPlanKey(const QString &productId, const QString &productType,
+                                                    const QString &googlePlayBasePlanId) const
+{
+    return productId.trimmed() + QStringLiteral("|")
+           + productType.trimmed().toLower() + QStringLiteral("|")
+           + googlePlayBasePlanId.trimmed();
+}
+
+void SubscriptionUiController::refreshGooglePlayMinPriceLabel()
+{
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+    const QString selectedServiceType = m_apiServicesModel->getSelectedServiceType();
+    if (selectedServiceType != QStringLiteral("amnezia-premium") || m_googlePlayMonthlyPriceLabels.isEmpty()) {
+        return;
+    }
+
+    QString minMonthlyPriceLabel;
+    qlonglong minMonthlyPriceAmountMicros = 0;
+    for (auto it = m_googlePlayMonthlyPriceLabels.cbegin(); it != m_googlePlayMonthlyPriceLabels.cend(); ++it) {
+        if (it.value().label.isEmpty() || it.value().amountMicros <= 0) {
+            continue;
+        }
+        if (minMonthlyPriceLabel.isEmpty() || it.value().amountMicros < minMonthlyPriceAmountMicros) {
+            minMonthlyPriceLabel = it.value().label;
+            minMonthlyPriceAmountMicros = it.value().amountMicros;
+        }
+    }
+
+    if (minMonthlyPriceLabel.isEmpty()) {
+        return;
+    }
+
+    m_apiServicesModel->updateMinPriceLabelForType(
+        selectedServiceType,
+        QCoreApplication::translate("ServicesCatalogController", "from %1 per month",
+                                    "IAP: card footer minimum monthly price from Google Play")
+            .arg(minMonthlyPriceLabel));
+#endif
 }
 
 bool SubscriptionUiController::isCaptchaAwaitingUser() const
@@ -225,6 +321,59 @@ bool SubscriptionUiController::importPremiumFromAppStore(const QString &storePro
     emit installServerFromApiFinished(tr("%1 has been added to the app").arg(m_apiServicesModel->getSelectedServiceName()));
 #endif
     return true;
+}
+
+bool SubscriptionUiController::importPremiumFromGooglePlay(const QString &storeProductId,
+                                                           const QString &storeProductType,
+                                                           const QString &googlePlayBasePlanId)
+{
+#if defined(Q_OS_ANDROID) && defined(GPAY)
+    QString productId = storeProductId.trimmed();
+    QString productType = storeProductType.trimmed().toLower();
+    QString basePlanId = googlePlayBasePlanId.trimmed();
+
+    if (productId.isEmpty()) {
+        emit errorOccurred(ErrorCode::ApiPurchaseError);
+        return false;
+    }
+
+    if (productType.isEmpty()) {
+        productType = QStringLiteral("subs");
+    }
+
+    if (productType != QStringLiteral("subs") && productType != QStringLiteral("inapp")) {
+        emit errorOccurred(ErrorCode::ApiPurchaseError);
+        return false;
+    }
+
+    int duplicateServerIndex = -1;
+    ErrorCode errorCode = m_subscriptionController->processGooglePlayPurchase(
+        m_apiServicesModel->getCountryCode(),
+        m_apiServicesModel->getSelectedServiceType(),
+        m_apiServicesModel->getSelectedServiceProtocol(),
+        productId,
+        productType,
+        basePlanId,
+        &duplicateServerIndex);
+
+    if (errorCode != ErrorCode::NoError) {
+        if (errorCode == ErrorCode::ApiConfigAlreadyAdded) {
+            emit installServerFromApiFinished(tr("This subscription has already been added"), duplicateServerIndex);
+            return true;
+        }
+        emit errorOccurred(errorCode);
+        return false;
+    }
+
+    emit installServerFromApiFinished(tr("%1 has been added to the app").arg(m_apiServicesModel->getSelectedServiceName()));
+    return true;
+#else
+    Q_UNUSED(storeProductId);
+    Q_UNUSED(storeProductType);
+    Q_UNUSED(googlePlayBasePlanId);
+    emit errorOccurred(ErrorCode::ApiPurchaseError);
+    return false;
+#endif
 }
 
 bool SubscriptionUiController::restoreServiceFromAppStore()
@@ -414,7 +563,8 @@ bool SubscriptionUiController::importTrialFromGateway(const QString &email)
 }
 
 bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, const QString &newCountryName,
-                                                    bool reloadServiceConfig)
+                                                    bool reloadServiceConfig, const QString &serviceProtocolOverride,
+                                                    const QString &newCityName)
 {
     bool isConnectEvent = newCountryCode.isEmpty() && newCountryName.isEmpty() && !reloadServiceConfig;
     bool wasSubscriptionExpired = false;
@@ -423,9 +573,12 @@ bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId,
                 || oldApiV2->apiConfig.isSubscriptionExpired();
     }
 
-    ErrorCode errorCode = m_subscriptionController->updateServiceFromGateway(serverId, newCountryCode, isConnectEvent);
+    ErrorCode errorCode = m_subscriptionController->updateServiceFromGateway(serverId, newCountryCode, isConnectEvent,
+                                                                            newCityName, serviceProtocolOverride, false, newCountryName);
 
     if (errorCode == ErrorCode::NoError) {
+        refreshApiCountryModelFromServer(serverId);
+        m_serversController->setDefaultServer(serverId);
         if (wasSubscriptionExpired) {
             emit subscriptionRefreshNeeded();
         }
@@ -434,7 +587,8 @@ bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId,
         } else if (newCountryName.isEmpty()) {
             emit updateServerFromApiFinished();
         } else {
-            emit changeApiCountryFinished(tr("Successfully changed the country of connection to %1").arg(newCountryName));
+            const QString locationName = newCityName.isEmpty() ? newCountryName : QStringLiteral("%1 / %2").arg(newCountryName, newCityName);
+            emit changeApiCountryFinished(tr("Successfully changed the country of connection to %1").arg(locationName));
         }
         return true;
     } else {
@@ -445,6 +599,31 @@ bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId,
         }
         return false;
     }
+}
+
+bool SubscriptionUiController::resetServiceClientIdentity(const QString &serverId)
+{
+    QString serverMessage;
+    ErrorCode errorCode = m_subscriptionController->resetServiceClientIdentity(serverId, &serverMessage);
+
+    if (errorCode == ErrorCode::NoError) {
+        refreshApiCountryModelFromServer(serverId);
+        m_serversController->setDefaultServer(serverId);
+        emit reloadServerFromApiFinished(tr("Reset successfully."));
+        return true;
+    }
+
+    if (errorCode == ErrorCode::ApiSubscriptionExpiredError) {
+        emit subscriptionExpiredOnServer();
+    } else if (errorCode == ErrorCode::ApiUpdateRequestError) {
+        const QString message = serverMessage.isEmpty()
+                ? tr("Reset request failed")
+                : tr("Reset request failed: %1").arg(serverMessage);
+        emit resetServiceClientIdentityFailed(message);
+    } else {
+        emit errorOccurred(errorCode);
+    }
+    return false;
 }
 
 
@@ -472,17 +651,30 @@ bool SubscriptionUiController::deactivateExternalDevice(const QString &serverId,
 }
 
 
-void SubscriptionUiController::validateConfig()
+void SubscriptionUiController::validateConfig(const QString &serverId)
 {
-    const QString serverId = m_serversController->getDefaultServerId();
     if (serverId.isEmpty()) {
-        emit configValidated(false);
+        emit configValidated(serverId, false);
         return;
     }
 
-    bool hasInstalledContainers = m_serversController->hasInstalledContainers(serverId);
+    ErrorCode errorCode = ErrorCode::NoError;
+    const auto apiV2 = m_serversController->apiV2Config(serverId);
+    const QString serviceProtocol = apiV2.has_value()
+            ? apiV2->serviceProtocol().trimmed().toLower()
+            : QString();
+    const bool isWireGuardConnection = serviceProtocol == QStringLiteral("awg")
+            || serviceProtocol == QStringLiteral("wireguard");
 
-    ErrorCode errorCode = m_subscriptionController->validateAndUpdateConfig(serverId, hasInstalledContainers);
+    if (isWireGuardConnection) {
+        // This is the single connect-intent /v1/config operation for an API
+        // WireGuard attempt. The backend must idempotently create/update the
+        // target peer before returning a usable configuration.
+        errorCode = m_subscriptionController->refreshWireGuardConfigForConnection(serverId);
+    } else {
+        const bool hasInstalledContainers = m_serversController->hasInstalledContainers(serverId);
+        errorCode = m_subscriptionController->validateAndUpdateConfig(serverId, hasInstalledContainers);
+    }
 
     if (errorCode != ErrorCode::NoError) {
         if (errorCode == ErrorCode::ApiSubscriptionExpiredError) {
@@ -490,10 +682,11 @@ void SubscriptionUiController::validateConfig()
         } else {
             emit errorOccurred(errorCode);
         }
-        emit configValidated(false);
+        emit configValidated(serverId, false);
         return;
     }
-    emit configValidated(true);
+    refreshApiCountryModelFromServer(serverId);
+    emit configValidated(serverId, true);
 }
 
 void SubscriptionUiController::setCurrentProtocol(const QString &serverId, const QString &protocolName)
@@ -572,6 +765,17 @@ void SubscriptionUiController::updateApiCountryModel()
 {
     m_apiCountryModel->updateModel(m_apiAccountInfoModel->getAvailableCountries(), "");
     m_apiCountryModel->updateIssuedConfigsInfo(m_apiAccountInfoModel->getIssuedConfigsInfo());
+}
+
+void SubscriptionUiController::refreshApiCountryModelFromServer(const QString &serverId)
+{
+    const auto apiV2 = m_serversController->apiV2Config(serverId);
+    if (!apiV2.has_value()) {
+        return;
+    }
+
+    m_apiCountryModel->updateModel(apiV2->apiConfig.availableCountries,
+                                   apiV2->apiConfig.serverCountryCode);
 }
 
 void SubscriptionUiController::updateApiDevicesModel()

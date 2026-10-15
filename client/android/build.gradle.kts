@@ -34,7 +34,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "org.amnezia.vpn"
+        applicationId = "org.reda.vpn"
         targetSdk = qtTargetSdkVersion.toInt()
 
         // keeps language resources for only the locales specified below
@@ -76,6 +76,7 @@ dependencies {
     implementation(project(":openvpn"))
     implementation(project(":xray"))
     implementation(libs.androidx.core)
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.fragment)
     implementation(libs.kotlinx.coroutines)
@@ -84,4 +85,5 @@ dependencies {
     implementation(libs.google.mlkit)
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.biometric)
+    implementation(libs.google.play.billing)
 }

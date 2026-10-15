@@ -76,6 +76,7 @@ public:
 
 public slots:
     void updateModel(const QJsonObject &data);
+    void updateMinPriceLabelForType(const QString &serviceType, const QString &minPriceLabel);
 
     void setServiceIndex(const int index);
 

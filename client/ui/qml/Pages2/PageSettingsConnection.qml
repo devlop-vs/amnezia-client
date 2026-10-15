@@ -14,6 +14,17 @@ PageType {
 
     property bool isAppSplitTinnelingEnabled: Qt.platform.os === "windows" || Qt.platform.os === "android"
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     BackButtonType {
         id: backButton
 
@@ -85,7 +96,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsDns)
+                    root.openPageCompatible(PageEnum.PageSettingsDns)
                 }
             }
 
@@ -101,7 +112,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsSplitTunneling)
+                    root.openPageCompatible(PageEnum.PageSettingsSplitTunneling)
                 }
             }
 
@@ -125,7 +136,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsAppSplitTunneling)
+                    root.openPageCompatible(PageEnum.PageSettingsAppSplitTunneling)
                 }
             }
 
@@ -144,7 +155,7 @@ PageType {
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
 
                 clickedFunction: function() {
-                    PageController.goToPage(PageEnum.PageSettingsKillSwitch)
+                    root.openPageCompatible(PageEnum.PageSettingsKillSwitch)
                 }
             }
 

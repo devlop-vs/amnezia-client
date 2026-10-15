@@ -3,13 +3,15 @@ cmake_minimum_required(VERSION 3.25.0 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(GPAY "Enable Google Play Billing flow for Android subscriptions" OFF)
+
 #== step 1          要求 CMake 版本至少是 3.25，不满足就报致命错误。
 #==.                   整个项目使用 C++17，并强制要求支持这个标准（不能退回到更低标准）
 
 
 
 set(PROJECT AmneziaVPN)
-set(AMNEZIAVPN_VERSION 4.9.0.3)
+set(AMNEZIAVPN_VERSION 4.9.0.43)
 #---step 2 --           先把项目名和版本存在变量里，下面 project() 会用到。
 
 
@@ -33,6 +35,11 @@ project(${PROJECT} VERSION ${AMNEZIAVPN_VERSION}
         DESCRIPTION "AmneziaVPN"
         HOMEPAGE_URL "https://amnezia.org/"
 )
+
+if(APPLE)
+    enable_language(OBJC)
+    enable_language(OBJCXX)
+endif()
 #=== step 5 ===         真正创建 CMake 项目 AmneziaVPN，版本设为 4.9.0.3； 附带描述和主页链接，主要用于 IDE 展示、打包元数据。
 
 
@@ -54,10 +61,10 @@ string(TIMESTAMP CURRENT_DATE "%Y-%m-%d")
 set(RELEASE_DATE "${CURRENT_DATE}")
 
 set(APP_MAJOR_VERSION ${CMAKE_PROJECT_VERSION_MAJOR}.${CMAKE_PROJECT_VERSION_MINOR}.${CMAKE_PROJECT_VERSION_PATCH})
-set(APP_ANDROID_VERSION_CODE 2131)
+set(APP_ANDROID_VERSION_CODE 2171)
 
 #=== step 7         取当前日期，格式为 YYYY-MM-DD，用于构建时写入版本信息或 About 对话框。
-#.              APP_MAJOR_VERSION：从 4.9.0.3 中取 MAJOR.MINOR.PATCH（三段），生成 4.9.0 之类的版本号，用于显示。
+#.              APP_MAJOR_VERSION：从 4.9.0.34 中取 MAJOR.MINOR.PATCH（三段），生成 4.9.0 之类的版本号，用于显示。
 #               APP_ANDROID_VERSION_CODE：Android 的整数版本号，用于 versionCode，影响升级顺序。
 
 

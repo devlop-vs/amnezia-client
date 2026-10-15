@@ -2,6 +2,7 @@
 #define SUBSCRIPTIONUICONTROLLER_H
 
 #include <QObject>
+#include <QHash>
 
 #include "core/controllers/serversController.h"
 #include "core/controllers/settingsController.h"
@@ -45,15 +46,19 @@ public slots:
 
     bool fillAvailableServices();
     bool importPremiumFromAppStore(const QString &storeProductId);
+    bool importPremiumFromGooglePlay(const QString &storeProductId, const QString &storeProductType,
+                                     const QString &googlePlayBasePlanId);
     bool importFreeFromGateway();
     bool restoreServiceFromAppStore();
     bool importTrialFromGateway(const QString &email);
     bool updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, const QString &newCountryName,
-                                  bool reloadServiceConfig = false);
+                                  bool reloadServiceConfig = false, const QString &serviceProtocolOverride = QString(),
+                                  const QString &newCityName = QString());
+    bool resetServiceClientIdentity(const QString &serverId);
     bool deactivateDevice(const QString &serverId);
     bool deactivateExternalDevice(const QString &serverId, const QString &uuid, const QString &serverCountryCode);
 
-    void validateConfig();
+    void validateConfig(const QString &serverId);
 
     void setCurrentProtocol(const QString &serverId, const QString &protocolName);
     bool isVlessProtocol(const QString &serverId);
@@ -70,10 +75,11 @@ public slots:
     void getRenewalLink(const QString &serverId);
 
     void updateApiCountryModel();
+    void refreshApiCountryModelFromServer(const QString &serverId);
     void updateApiDevicesModel();
 
 signals:
-    void configValidated(bool isValid);
+    void configValidated(const QString &serverId, bool isValid);
     void errorOccurred(ErrorCode errorCode);
     void trialEmailError(const QString &message);
     void subscriptionExpiredOnServer();
@@ -82,6 +88,7 @@ signals:
     void installServerFromApiFinished(const QString &message, int preferredDefaultServerIndex = -1);
     void changeApiCountryFinished(const QString &message);
     void reloadServerFromApiFinished(const QString &message);
+    void resetServiceClientIdentityFailed(const QString &message);
     void updateServerFromApiFinished();
     void subscriptionRefreshNeeded();
 
@@ -110,9 +117,16 @@ private:
     QList<QString> getQrCodes();
     int getQrCodesCount();
     QString getVpnKey();
+    QString googlePlayPlanKey(const QString &productId, const QString &productType, const QString &googlePlayBasePlanId) const;
+    void refreshGooglePlayMinPriceLabel();
+    struct GooglePlayMonthlyQuote {
+        QString label;
+        qlonglong amountMicros = 0;
+    };
 
     QList<QString> m_qrCodes;
     QString m_vpnKey;
+    QHash<QString, GooglePlayMonthlyQuote> m_googlePlayMonthlyPriceLabels;
 
     ServersController* m_serversController;
     ApiServicesModel* m_apiServicesModel;

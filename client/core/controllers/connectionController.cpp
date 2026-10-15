@@ -1,5 +1,7 @@
 #include "connectionController.h"
 
+#include <QCryptographicHash>
+#include <QDebug>
 #include <QJsonDocument>
 
 #include "core/configurators/configuratorBase.h"
@@ -18,6 +20,43 @@
 using namespace amnezia;
 using namespace ProtocolUtils;
 
+namespace
+{
+QString sha256Fingerprint(const QString &value)
+{
+    if (value.isEmpty()) {
+        return {};
+    }
+
+    return QString::fromLatin1(QCryptographicHash::hash(value.toUtf8(), QCryptographicHash::Sha256).toHex());
+}
+
+void redactValue(QJsonObject &object, const QString &key, const QString &logKeyPrefix)
+{
+    const QString value = object.value(key).toString();
+    object.remove(key);
+    object.insert(logKeyPrefix + QStringLiteral("_present"), !value.isEmpty());
+    if (!value.isEmpty()) {
+        object.insert(logKeyPrefix + QStringLiteral("_sha256"), sha256Fingerprint(value));
+    }
+}
+
+QJsonObject sanitizedWireGuardConfiguration(const QJsonObject &vpnConfiguration, Proto proto)
+{
+    QJsonObject sanitized = vpnConfiguration;
+    const QString protocolConfigKey = ProtocolUtils::key_proto_config_data(proto);
+    QJsonObject protocolConfig = sanitized.value(protocolConfigKey).toObject();
+
+    redactValue(protocolConfig, configKey::clientPrivKey, QStringLiteral("client_priv_key"));
+    redactValue(protocolConfig, configKey::pskKey, QStringLiteral("psk_key"));
+    redactValue(protocolConfig, configKey::serverPrivKey, QStringLiteral("server_priv_key"));
+    redactValue(protocolConfig, configKey::config, QStringLiteral("native_config"));
+
+    sanitized.insert(protocolConfigKey, protocolConfig);
+    return sanitized;
+}
+}
+
 ConnectionController::ConnectionController(SecureServersRepository* serversRepository,
                                          SecureAppSettingsRepository* appSettingsRepository,
                                          VpnConnection* vpnConnection,
@@ -25,9 +64,10 @@ ConnectionController::ConnectionController(SecureServersRepository* serversRepos
     : QObject(parent),
       m_serversRepository(serversRepository),
       m_appSettingsRepository(appSettingsRepository),
-      m_vpnConnection(vpnConnection)
+            m_vpnConnection(vpnConnection)
 {
-    connect(m_vpnConnection, &VpnConnection::connectionStateChanged, this, &ConnectionController::connectionStateChanged);
+        connect(m_vpnConnection, &VpnConnection::connectionStateChanged, this, &ConnectionController::connectionStateChanged);
+    connect(m_vpnConnection, &VpnConnection::bytesChanged, this, &ConnectionController::bytesChanged);
     connect(this, &ConnectionController::openConnectionRequested, m_vpnConnection, &VpnConnection::connectToVpn, Qt::QueuedConnection);
     connect(this, &ConnectionController::closeConnectionRequested, m_vpnConnection, &VpnConnection::disconnectFromVpn, Qt::QueuedConnection);
     connect(this, &ConnectionController::setConnectionStateRequested, m_vpnConnection, &VpnConnection::setConnectionState, Qt::QueuedConnection);
@@ -231,6 +271,16 @@ ErrorCode ConnectionController::openConnection(const QString &serverId)
         return errorCode;
     }
 
+    const Proto proto = ContainerUtils::defaultProtocol(container);
+    if (proto == Proto::WireGuard || proto == Proto::Awg) {
+        const QJsonObject logConfiguration = sanitizedWireGuardConfiguration(vpnConfiguration, proto);
+        qWarning().noquote()
+                << "ConnectionController::openConnection: final sanitized VPN configuration"
+                << "serverId=" << serverId
+                << "container=" << ContainerUtils::containerToString(container)
+                << QJsonDocument(logConfiguration).toJson(QJsonDocument::Compact);
+    }
+
     emit openConnectionRequested(serverId, container, vpnConfiguration);
     return ErrorCode::NoError;
 }
@@ -294,6 +344,10 @@ QJsonObject ConnectionController::createConnectionConfiguration(const QPair<QStr
 
     QJsonObject vpnConfigData = processedConfig.getClientConfigJson();
     if (ContainerUtils::isAwgContainer(container) || container == DockerContainer::WireGuard) {
+        if (vpnConfigData[configKey::hostName].toString().isEmpty()) {
+            vpnConfigData[configKey::hostName] = hostName;
+        }
+
         if (vpnConfigData[configKey::mtu].toString().isEmpty()) {
             vpnConfigData[configKey::mtu] =
                     ContainerUtils::isAwgContainer(container) ? protocols::awg::defaultMtu :

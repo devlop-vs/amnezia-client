@@ -13,6 +13,40 @@ Rectangle {
 
     signal disconnectPressed()
 
+    property string countryCode: "GB"
+    property string countryName: "United Kingdom"
+    property string protocolName: "wireguard"
+
+    function flagEmoji(countryCode) {
+        var code = countryCode.toUpperCase()
+        if (code.length !== 2) {
+            return "🌐"
+        }
+
+        return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65,
+                                    0x1F1E6 + code.charCodeAt(1) - 65)
+    }
+
+    function protocolDisplayName(protocol) {
+        switch (protocol.toLowerCase()) {
+        case "wireguard": return "WireGuard"
+        case "awg": return "AmneziaWG"
+        case "openvpn": return "OpenVPN"
+        case "vless": return "VLESS"
+        default: return protocol
+        }
+    }
+
+    function protocolShortName(protocol) {
+        switch (protocol.toLowerCase()) {
+        case "wireguard": return "WG"
+        case "awg": return "AWG"
+        case "openvpn": return "OVPN"
+        case "vless": return "VLESS"
+        default: return protocol.toUpperCase()
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -37,13 +71,13 @@ Rectangle {
                 color: Theme.accentBlueDark
                 Text {
                     anchors.centerIn: parent
-                    text: "🇬🇧"
+                    text: root.flagEmoji(root.countryCode)
                     font.pixelSize: 27
                 }
             }
 
             Text {
-                text: "United Kingdom"
+                text: root.countryName.length > 0 ? root.countryName : qsTr("Selected location")
                 font { family: Theme.fontFamily; pixelSize: 17; weight: Font.DemiBold }
                 color: Theme.textPrimary
             }
@@ -52,7 +86,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 8
-            text: "00:25:57"
+            text: ConnectionController.connectionDurationText
             font { family: Theme.fontFamily; pixelSize: 48; bold: true }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -126,7 +160,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Text {
-                    text: "WireGuard"
+                    text: root.protocolDisplayName(root.protocolName)
                     font { family: Theme.fontFamily; pixelSize: 14 }
                     color: Theme.textMuted
                 }
@@ -135,8 +169,8 @@ Rectangle {
 
         SpeedStats {
             Layout.topMargin: 16
-            downloadSpeed: "147.67 Mbps"
-            uploadSpeed: "348.3 Mbps"
+            downloadSpeed: ConnectionController.downloadSpeedText
+            uploadSpeed: ConnectionController.uploadSpeedText
         }
 
         // Stats cards
@@ -149,9 +183,9 @@ Rectangle {
 
             Repeater {
                 model: [
-                    { label: "Ping", value: "16 ms" },
-                    { label: "Protocol", value: "WG" },
-                    { label: "Duration", value: "00:25:57" }
+                    "Ping",
+                    "Protocol",
+                    "Duration"
                 ]
 
                 Rectangle {
@@ -167,12 +201,14 @@ Rectangle {
                         spacing: 15
 
                         Text {
-                            text: modelData.label
+                            text: modelData
                             font { family: Theme.fontFamily; pixelSize: 12 }
                             color: Theme.textMuted
                         }
                         Text {
-                            text: modelData.value
+                            text: modelData === "Duration"
+                                  ? ConnectionController.connectionDurationText
+                                  : (modelData === "Protocol" ? root.protocolShortName(root.protocolName) : "16 ms")
                             font { family: Theme.fontFamily; pixelSize: 18; bold: true }
                             color: Theme.primaryGreen
                         }
@@ -192,7 +228,7 @@ Rectangle {
             Image {
                 id: earthImage
                 anchors.fill: parent
-                source: "assets/earth-background.png"
+                source: "qrc:/ui/qml/RedaVia/assets/earth-background.png"
                 fillMode: Image.PreserveAspectCrop
                 visible: false
                 smooth: true

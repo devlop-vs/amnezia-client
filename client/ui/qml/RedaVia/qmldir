@@ -15,3 +15,6 @@ SubscriptionPage 1.0 SubscriptionPage.qml
 ProfilePage 1.0 ProfilePage.qml
 TrafficDashboard 1.0 TrafficDashboard.qml
 OnboardingPage 1.0 OnboardingPage.qml
+Onboarding_slide_1 1.0 Onboarding_slide_1.qml
+Onboarding_slide_2 1.0 Onboarding_slide_2.qml
+Onboarding_slide_3 1.0 Onboarding_slide_3.qml

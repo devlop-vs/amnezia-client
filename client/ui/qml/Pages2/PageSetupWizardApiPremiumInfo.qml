@@ -119,7 +119,7 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
                 Layout.bottomMargin: 24
-                visible: Qt.platform.os === "ios" || IsMacOsNeBuild
+                visible: Qt.platform.os === "ios" || IsMacOsNeBuild || (Qt.platform.os === "android" && IsGooglePlayBillingBuild)
                 spacing: 16
 
                 ParagraphTextType {
@@ -129,11 +129,18 @@ PageType {
                     color: AmneziaStyle.color.mutedGray
                     font.pixelSize: 12
 
-                    text: qsTr("Charged to your Apple ID at confirmation. Renews automatically unless auto-renew is turned off at least 24 hours before period end. Manage in Apple ID settings.")
+                    text: {
+                        if (Qt.platform.os === "android" && IsGooglePlayBillingBuild) {
+                            return qsTr("Charged through Google Play at confirmation. Renews automatically unless canceled before the end of the current billing period. Manage in Google Play subscriptions.")
+                        }
+                        return qsTr("Charged to your Apple ID at confirmation. Renews automatically unless auto-renew is turned off at least 24 hours before period end. Manage in Apple ID settings.")
+                    }
                 }
 
                 TermsAndPrivacyText {
-                    termsUrl: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+                    termsUrl: (Qt.platform.os === "android" && IsGooglePlayBillingBuild)
+                              ? String(ApiServicesModel.getSelectedServiceData("termsOfUseUrl"))
+                              : "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
                     privacyUrl: LanguageUiController.getCurrentSiteUrl("policy")
                 }
             }
@@ -144,7 +151,7 @@ PageType {
                 Layout.rightMargin: 16
                 Layout.bottomMargin: 24
 
-                visible: !(Qt.platform.os === "ios" || IsMacOsNeBuild)
+                visible: !(Qt.platform.os === "ios" || IsMacOsNeBuild || (Qt.platform.os === "android" && IsGooglePlayBillingBuild))
 
                 termsUrl: String(ApiServicesModel.getSelectedServiceData("termsOfUseUrl"))
                 privacyUrl: String(ApiServicesModel.getSelectedServiceData("privacyPolicyUrl"))
@@ -184,6 +191,15 @@ PageType {
                 PageController.showBusyIndicator(true)
                 var storeId = plan.storeProductId !== undefined ? String(plan.storeProductId) : ""
                 SubscriptionUiController.importPremiumFromAppStore(storeId)
+                PageController.showBusyIndicator(false)
+                return
+            }
+            if (Qt.platform.os === "android" && IsGooglePlayBillingBuild) {
+                PageController.showBusyIndicator(true)
+                var androidStoreId = plan.storeProductId !== undefined ? String(plan.storeProductId) : ""
+                var androidStoreProductType = plan.storeProductType !== undefined ? String(plan.storeProductType) : ""
+                var androidGooglePlayBasePlanId = plan.googlePlayBasePlanId !== undefined ? String(plan.googlePlayBasePlanId) : ""
+                SubscriptionUiController.importPremiumFromGooglePlay(androidStoreId, androidStoreProductType, androidGooglePlayBasePlanId)
                 PageController.showBusyIndicator(false)
                 return
             }

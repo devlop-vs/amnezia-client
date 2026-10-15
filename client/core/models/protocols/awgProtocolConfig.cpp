@@ -215,6 +215,9 @@ AwgClientConfig AwgClientConfig::fromJson(const QJsonObject& json)
     
     config.nativeConfig = json.value(configKey::config).toString();
     config.hostName = json.value(configKey::hostName).toString();
+    if (config.hostName.isEmpty()) {
+        config.hostName = json.value(QStringLiteral("host_name")).toString();
+    }
     config.port = json.value(configKey::port).toInt(0);
     config.clientIp = json.value(configKey::clientIp).toString();
     config.clientPrivateKey = json.value(configKey::clientPrivKey).toString();
@@ -222,6 +225,9 @@ AwgClientConfig AwgClientConfig::fromJson(const QJsonObject& json)
     config.serverPublicKey = json.value(configKey::serverPubKey).toString();
     config.presharedKey = json.value(configKey::pskKey).toString();
     config.clientId = json.value(configKey::clientId).toString();
+    if (config.clientId.isEmpty()) {
+        config.clientId = json.value(QStringLiteral("client_id")).toString();
+    }
     
     QJsonArray allowedIpsArr = json.value(configKey::allowedIps).toArray();
     for (const QJsonValue& val : allowedIpsArr) {

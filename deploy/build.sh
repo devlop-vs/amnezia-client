@@ -33,6 +33,7 @@ while [[ $# -gt 0 ]]; do
         --abi)              abis+=("$2");            shift 2 ;;
         --sign)             : ${SIGN:=true};         shift   ;;
         --aab)              : ${BUILD_AAB=true};     shift   ;;
+        --gpay)             : ${GPAY:=TRUE};         shift   ;;
         --help|-h|?)
             echo "Usage: $0 [options]"
             echo "  Options:"
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --abi                     - specify Android ABIs for target to build for. all by default"
             echo "  --sign                    - whether to sign the resulting files. only appicable to Android"
             echo "  --aab                     - whether to build AAB. only applicable to Android"
+            echo "  --gpay                    - enable Google Play Billing flow for Android subscriptions"
             exit 0
             ;;
         *) echo "Unknown arg \"$1\". Use $0 -h to get help"; exit 1 ;;
@@ -130,6 +132,9 @@ case "$TARGET" in
         : ${CMAKE_GENERATOR:="Xcode"}
         : ${CMAKE_OSX_SYSROOT=iphoneos}
         : ${CMAKE_TOOLCHAIN_FILE:="$QT_ROOT_PATH/ios/lib/cmake/Qt6/qt.toolchain.cmake"}
+        : ${BUILD_IOS_APP_IDENTIFIER:="org.usino.RedaVPN"}
+        : ${BUILD_IOS_GROUP_IDENTIFIER:="group.org.usino.RedaVPN"}
+        : ${BUILD_VPN_DEVELOPMENT_TEAM:="T6L4N6F3H4"}
         ;;
     android)
         no_installers=1
@@ -203,7 +208,11 @@ args=()
 [[ -n "$QT_HOST_PATH" ]]              && args+=("-DQT_HOST_PATH=$QT_HOST_PATH")
 [[ -n "$CMAKE_OSX_SYSROOT" ]]         && args+=("-DCMAKE_OSX_SYSROOT=$CMAKE_OSX_SYSROOT")
 [[ -n "$MACOS_NE" ]]                  && args+=("-DMACOS_NE=$MACOS_NE")
+[[ -n "$GPAY" ]]                      && args+=("-DGPAY:BOOL=$GPAY")
 [[ -n "$DEPLOY" ]]                    && args+=("-DDEPLOY=$DEPLOY")
+[[ -n "$BUILD_IOS_APP_IDENTIFIER" ]]  && args+=("-DBUILD_IOS_APP_IDENTIFIER=$BUILD_IOS_APP_IDENTIFIER")
+[[ -n "$BUILD_IOS_GROUP_IDENTIFIER" ]] && args+=("-DBUILD_IOS_GROUP_IDENTIFIER=$BUILD_IOS_GROUP_IDENTIFIER")
+[[ -n "$BUILD_VPN_DEVELOPMENT_TEAM" ]] && args+=("-DBUILD_VPN_DEVELOPMENT_TEAM=$BUILD_VPN_DEVELOPMENT_TEAM")
 [[ -n "$ANDROID_ABI" ]]               && args+=("-DANDROID_ABI=$ANDROID_ABI")
 [[ -n "$ANDROID_SDK_ROOT" ]]          && args+=("-DANDROID_SDK_ROOT=$ANDROID_SDK_ROOT")
 [[ -n "$ANDROID_NDK_ROOT" ]]          && args+=("-DANDROID_NDK_ROOT=$ANDROID_NDK_ROOT")

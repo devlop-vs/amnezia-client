@@ -42,11 +42,12 @@ val androidBuildToolsVersion: String by gradleProperties
 val androidCompileSdkVersion: String by gradleProperties
 val androidNdkVersion: String by gradleProperties
 val qtMinSdkVersion: String by gradleProperties
+val resolvedCompileSdk = androidCompileSdkVersion.removePrefix("android-").toInt()
 
 // set default values for all modules
 configure<SettingsExtension> {
     buildToolsVersion = androidBuildToolsVersion
-    compileSdk = androidCompileSdkVersion.split('-')[1].toInt()
+    compileSdk = resolvedCompileSdk
     minSdk = qtMinSdkVersion.toInt()
     ndkVersion = androidNdkVersion
 }

@@ -20,6 +20,16 @@ PageType {
     property bool isUnsupportedContainer: ContainerProps.isUnsupportedContainer(ServersUiController.processedContainerIndex)
     property bool isClearCacheVisible: !isUnsupportedContainer && ServersUiController.isProcessedServerHasWriteAccess() && !ContainersModel.isServiceContainer(ServersUiController.processedContainerIndex)
 
+    function openPageCompatible(pageEnum, slide) {
+        var pagePath = PageController.getPagePath(pageEnum)
+        var stackView = root.StackView.view
+        if (stackView) {
+            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
+        } else {
+            PageController.goToPage(pageEnum, slide === false ? false : true)
+        }
+    }
+
     BackButtonType {
         id: backButton
 
@@ -79,7 +89,7 @@ PageType {
                 clickedFunction: function() {
                     if (isClientProtocolExists) {
                         InstallController.openClientSettings(ServersUiController.processedServerId, ServersUiController.processedContainerIndex, protocolIndex)
-                        PageController.goToPage(clientProtocolPage);
+                        root.openPageCompatible(clientProtocolPage)
                     } else {
                         PageController.showNotificationMessage(qsTr("Click the \"connect\" button to create a connection configuration"))
                     }
@@ -107,7 +117,7 @@ PageType {
 
                 clickedFunction: function() {
                     InstallController.openServerSettings(ServersUiController.processedServerId, ServersUiController.processedContainerIndex, protocolIndex)
-                    PageController.goToPage(serverProtocolPage);
+                    root.openPageCompatible(serverProtocolPage)
                 }
 
                 MouseArea {
