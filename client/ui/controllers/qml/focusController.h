@@ -4,6 +4,7 @@
 #include "ui/controllers/qml/listViewFocusController.h"
 
 #include <QQmlApplicationEngine>
+#include <QPointer>
 
 /*!
  * \brief The FocusController class makes focus control more straightforward
@@ -44,9 +45,9 @@ private:
 
     QQmlApplicationEngine *m_engine; // Pointer to engine to get root object
     QList<QObject *> m_focusChain;   // List of current objects to be focused
-    QQuickItem *m_focusedItem;       // Pointer to the active focus item
-    QStack<QObject *> m_rootObjects; // Pointer to stack of roots for focus chain
-    QQuickItem *m_defaultFocusItem;
+    QPointer<QQuickItem> m_focusedItem;      // Active focus item, cleared if QML destroys it
+    QStack<QObject *> m_rootObjects;          // Pointer to stack of roots for focus chain
+    QPointer<QQuickItem> m_defaultFocusItem;  // Default item, cleared if QML destroys it
 
     ListViewFocusController *m_lvfc; // ListView focus manager
 

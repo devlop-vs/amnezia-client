@@ -60,6 +60,46 @@ Rectangle {
         PageController.showBusyIndicator(false)
     }
 
+    function openSubscriptionSettings() {
+        var serverId = ServersUiController.defaultServerId
+
+        if (serverId.length === 0) {
+            PageController.showNotificationMessage(qsTr("No VPN configuration installed"))
+            return
+        }
+        if (!ServersUiController.isServerFromApi(serverId)) {
+            PageController.showNotificationMessage(qsTr("Current VPN configuration does not support subscription settings"))
+            return
+        }
+
+        ServersUiController.setProcessedServerId(serverId)
+        PageController.showBusyIndicator(true)
+        var result = SubscriptionUiController.getAccountInfo(serverId, false)
+        PageController.showBusyIndicator(false)
+        if (!result) {
+            return
+        }
+
+        var sv = root.StackView.view
+        if (sv) {
+            var pagePath = "qrc:/ui/qml/Pages2/PageSettingsApiServerInfo.qml"
+            sv.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
+        }
+    }
+
+    function refreshAccount() {
+        if (!AuthController.isLoggedIn || AuthController.userEmail.length === 0) {
+            PageController.showNotificationMessage(qsTr("Please sign in to refresh your account"))
+            return
+        }
+
+        console.log("[RedaVia] Refresh account subscription for:", AuthController.userEmail)
+        var started = SubscriptionUiController.getAccountInfoByEmail(AuthController.userEmail)
+        if (!started) {
+            PageController.showNotificationMessage(qsTr("Unable to refresh account"))
+        }
+    }
+
     function refreshProfileData() {
         if (AuthController.isLoggedIn && AuthController.userEmail.length > 0) {
             displayInitial = AuthController.userEmail.charAt(0).toUpperCase()
@@ -120,6 +160,10 @@ Rectangle {
             }
         } else if (item === "Reset") {
             root.resetVpnClientIdentityFromGateway()
+        } else if (item === "Settings") {
+            root.openSubscriptionSettings()
+        } else if (item === "Refresh Account") {
+            root.refreshAccount()
         }
     }
 
@@ -183,12 +227,16 @@ Rectangle {
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.topMargin: 24
-            Layout.bottomMargin: root.height - Theme.tabBarY
             spacing: 8
             clip: true
-            interactive: false
 
-            model: ["Account", "Devices", "Protocol", "Auto Connect", "Kill Switch", "Reset", "Language", "Appearance", "Help & About"]
+            // Keep the last menu item scrollable above the overlaid navigation bar.
+            footer: Item {
+                width: ListView.view ? ListView.view.width : 0
+                height: bottomTabBar.height
+            }
+
+            model: ["Account", "Devices", "Protocol", "Auto Connect", "Kill Switch", "Reset", "Settings", "Refresh Account", "Language", "Appearance", "Help & About"]
 
             delegate: Rectangle {
                 width: ListView.view.width
@@ -230,5 +278,8 @@ Rectangle {
         }
     }
 
-    BottomTabBar { currentIndex: 3 }
+    BottomTabBar {
+        id: bottomTabBar
+        currentIndex: 3
+    }
 }

@@ -173,6 +173,10 @@
         <file>RedaVia/assets/global_Illustration_Area.png</file>
         <file>RedaVia/assets/power-icon.svg</file>
         <file>RedaVia/assets/planet-clip.svg</file>
+        <file>RedaVia/assets/home.svg</file>
+        <file>RedaVia/assets/countries.svg</file>
+        <file>RedaVia/assets/subscription.svg</file>
+        <file>RedaVia/assets/settings.svg</file>
         <file>RedaVia/assets/security_Illustration_Area.png</file>
         <file>RedaVia/assets/shield_Illustration_Area.png</file>
     </qresource>

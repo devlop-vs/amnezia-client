@@ -22,6 +22,7 @@
 #include "ui/controllers/selfhosted/installUiController.h"
 #include "ui/controllers/importUiController.h"
 #include "ui/controllers/api/subscriptionUiController.h"
+#include "ui/controllers/authController.h"
 #include "ui/controllers/updateUiController.h"
 #include "ui/models/serversModel.h"
 #include "core/controllers/serversController.h"
@@ -66,6 +67,7 @@ void CoreSignalHandlers::initAllHandlers()
     initImportControllerHandler();
     initApiCountryModelUpdateHandler();
     initSubscriptionRefreshHandler();
+    initLoginSubscriptionCheckHandler();
     initAdminConfigRevokedHandler();
     initPassphraseRequestHandler();
     initTranslationsUpdatedHandler();
@@ -201,6 +203,16 @@ void CoreSignalHandlers::initSubscriptionRefreshHandler()
     });
 }
 
+void CoreSignalHandlers::initLoginSubscriptionCheckHandler()
+{
+    connect(m_coreController->m_authController, &AuthController::loginSuccess, this,
+            [this](const QString &email) {
+        // This discovery path deliberately does not require a local server: a
+        // subscription bought on another device can restore its VPN profile.
+        m_coreController->m_subscriptionUiController->getAccountInfoByEmail(email);
+    });
+}
+
 void CoreSignalHandlers::initAdminConfigRevokedHandler()
 {
     connect(m_coreController->m_installController, &InstallController::clientRevocationRequested, this,
@@ -315,14 +327,15 @@ void CoreSignalHandlers::initAppSplitTunnelingModelUpdateHandler()
 
 void CoreSignalHandlers::initPrepareConfigHandler()
 {
-    connect(m_coreController->m_connectionUiController, &ConnectionUiController::prepareConfig, this, [this]() {
+    connect(m_coreController->m_connectionUiController, &ConnectionUiController::prepareConfig, this, [this](const QString &serverId) {
         m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Preparing);
 
-        const QString serverId = m_coreController->m_serversController->getDefaultServerId();
         if (serverId.isEmpty()) {
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
         }
+
+        m_pendingConnectionServerId = serverId;
 
         const serverConfigUtils::ConfigType kind = m_coreController->m_serversRepository->serverKind(serverId);
 
@@ -336,21 +349,33 @@ void CoreSignalHandlers::initPrepareConfigHandler()
     connect(m_coreController->m_subscriptionUiController, &SubscriptionUiController::configValidated, this,
             [this](const QString &serverId, bool isValid) {
         if (!isValid) {
+            m_pendingConnectionServerId.clear();
+            m_coreController->m_connectionUiController->clearPendingConnectionServer();
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
         }
 
+        m_pendingConnectionServerId.clear();
         m_coreController->m_connectionUiController->openConnectionForServer(serverId);
     });
 
     connect(m_coreController->m_installUiController, &InstallUiController::configValidated, this, [this](bool isValid) {
         if (!isValid) {
+            m_pendingConnectionServerId.clear();
+            m_coreController->m_connectionUiController->clearPendingConnectionServer();
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
         }
 
-        m_coreController->m_connectionUiController->openConnection();
+        const QString serverId = m_pendingConnectionServerId;
+        m_pendingConnectionServerId.clear();
+        m_coreController->m_connectionUiController->openConnectionForServer(serverId);
     });
+
+    connect(m_coreController->m_connectionUiController,
+            &ConnectionUiController::peerDisconnectNotificationRequested,
+            m_coreController->m_subscriptionUiController,
+            &SubscriptionUiController::notifyWireGuardPeerDisconnected);
 }
 
 void CoreSignalHandlers::initUnsupportedConnectDrawerHandler()

@@ -210,7 +210,9 @@ void ListViewFocusController::focusNextItem()
     }
     m_focusedItemIndex++;
     m_focusedItem = qobject_cast<QQuickItem *>(m_focusChain.at(m_focusedItemIndex));
-    m_focusedItem->forceActiveFocus(Qt::TabFocusReason);
+    if (m_focusedItem && m_focusedItem->window()) {
+        m_focusedItem->forceActiveFocus(Qt::TabFocusReason);
+    }
 }
 
 void ListViewFocusController::focusPreviousItem()
@@ -234,7 +236,9 @@ void ListViewFocusController::focusPreviousItem()
     }
     m_focusedItemIndex--;
     m_focusedItem = qobject_cast<QQuickItem *>(m_focusChain.at(m_focusedItemIndex));
-    m_focusedItem->forceActiveFocus(Qt::TabFocusReason);
+    if (m_focusedItem && m_focusedItem->window()) {
+        m_focusedItem->forceActiveFocus(Qt::TabFocusReason);
+    }
 }
 
 void ListViewFocusController::resetFocusChain()

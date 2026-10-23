@@ -13,10 +13,10 @@ Rectangle {
     property int activeFilter: 0
     property var expandedCountries: ({})
     readonly property var protocolFilters: [
-        { label: qsTr("All"), protocol: "" },
-        { label: qsTr("WireGuard"), protocol: "wireguard" },
-        { label: qsTr("OpenVPN"), protocol: "openvpn" },
-        { label: qsTr("VLESS"), protocol: "vless" }
+        { label: qsTr("Country/Region"), protocol: "" },
+        { label: qsTr("Quick/UDP"), protocol: "wireguard" },
+        { label: qsTr("General"), protocol: "openvpn" },
+        { label: qsTr("Obfuscated VPN"), protocol: "vless" }
     ]
     signal serverSelected(string countryCode, string countryName, string protocolName)
 
@@ -120,20 +120,6 @@ Rectangle {
 
         return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65,
                                     0x1F1E6 + code.charCodeAt(1) - 65)
-    }
-
-    function locationsText(countryCode) {
-        countryCode = countryCode || ""
-        switch (countryCode.toUpperCase()) {
-        case "GB": return "16 Locations"
-        case "US": return "16 Locations"
-        case "FR": return "19 Locations"
-        case "DE": return "19 Locations"
-        case "CA": return "16 Locations"
-        case "SG": return "12 Locations"
-        case "JP": return "11 Locations"
-        default: return "1 Location"
-        }
     }
 
     function pingText(countryCode) {
@@ -251,10 +237,23 @@ Rectangle {
             color: "#0e1a2f"
             border { width: 1; color: Theme.borderColor }
 
+            Image {
+                id: searchIcon
+                width: 20
+                height: 20
+                anchors.left: parent.left
+                anchors.leftMargin: 18
+                anchors.verticalCenter: parent.verticalCenter
+                source: "qrc:/images/controls/search.svg"
+                sourceSize.width: width
+                sourceSize.height: height
+                fillMode: Image.PreserveAspectFit
+            }
+
             TextInput {
                 id: searchInput
                 anchors.fill: parent
-                anchors.leftMargin: 20
+                anchors.leftMargin: 52
                 anchors.rightMargin: 20
                 verticalAlignment: Text.AlignVCenter
                 font { family: Theme.fontFamily; pixelSize: 13 }
@@ -263,7 +262,7 @@ Rectangle {
                 Text {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
-                    text: "⌕   Search for country or city"
+                    text: qsTr("Search for country or city")
                     font: parent.font
                     color: Theme.textSubtle
                     visible: !parent.text && !parent.activeFocus
@@ -272,62 +271,119 @@ Rectangle {
         }
 
         // Filter tabs
-        RowLayout {
+        Item {
             Layout.fillWidth: true
+            Layout.maximumWidth: root.width
+            Layout.preferredHeight: 36
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.topMargin: 20
-            spacing: 10
+            clip: true
 
-            Repeater {
-                model: root.protocolFilters
+            Flickable {
+                id: filterFlickable
+                anchors.fill: parent
+                contentWidth: filterRow.implicitWidth
+                contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
 
-                Rectangle {
-                    Layout.preferredHeight: 36
-                    Layout.preferredWidth: filterLabel.implicitWidth + 32
-                    radius: 18
-                    color: root.activeFilter === index ? Theme.primaryGreen : Theme.cardBackground
+                Row {
+                    id: filterRow
+                    height: parent.height
+                    spacing: 10
 
-                    Behavior on color { ColorAnimation { duration: 200 } }
+                    Repeater {
+                        model: root.protocolFilters
 
-                    scale: filterMouse.pressed ? 0.93 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 100 } }
+                        Rectangle {
+                            width: filterLabel.implicitWidth + 32
+                            height: filterRow.height
+                            radius: height / 2
+                            color: root.activeFilter === index ? Theme.primaryGreen : Theme.cardBackground
 
-                    Text {
-                        id: filterLabel
-                        anchors.centerIn: parent
-                        text: modelData.label
-                        font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
-                        color: root.activeFilter === index ? Theme.background : Theme.textPrimary
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                    }
+                            Behavior on color { ColorAnimation { duration: 200 } }
 
-                    MouseArea {
-                        id: filterMouse
-                        anchors.fill: parent
-                        onClicked: root.activateProtocolFilter(index)
+                            scale: filterMouse.pressed ? 0.93 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 100 } }
+
+                            Text {
+                                id: filterLabel
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
+                                color: root.activeFilter === index ? Theme.background : Theme.textPrimary
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                            }
+
+                            MouseArea {
+                                id: filterMouse
+                                anchors.fill: parent
+                                onClicked: root.activateProtocolFilter(index)
+                            }
+                        }
                     }
                 }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.maximumWidth: root.width - 40
+            Layout.preferredHeight: visible ? obfuscatedDescription.implicitHeight + 28 : 0
+            Layout.leftMargin: 20
+            Layout.rightMargin: 20
+            Layout.topMargin: visible ? 14 : 0
+            radius: 14
+            color: Theme.cardBackground
+            border {
+                width: 1
+                color: Theme.borderColor
+            }
+            visible: root.selectedProtocol() === "vless"
+
+            Text {
+                id: obfuscatedDescription
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                text: qsTr("Obfuscated servers hide common signs of VPN usage, allowing you to connect to a VPN on restricted networks of some countries or regions.")
+                font {
+                    family: Theme.fontFamily
+                    pixelSize: 12
+                }
+                color: Theme.textSecondary
+                wrapMode: Text.WordWrap
             }
         }
 
         // Server list
         ListView {
             Layout.fillWidth: true
+            Layout.maximumWidth: root.width
             Layout.fillHeight: true
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.topMargin: 16
-            Layout.bottomMargin: root.height - Theme.tabBarY
             spacing: 10
             clip: true
+
+            // Reserve scrollable space for the overlaid navigation bar so the
+            // final country or city row can be brought fully into view.
+            footer: Item {
+                width: ListView.view ? ListView.view.width : 0
+                height: bottomTabBar.height
+            }
 
             model: ApiCountryModel
             currentIndex: ApiCountryModel.currentIndex
 
             delegate: Rectangle {
                 id: countryDelegate
-                width: ListView.view.width
+                width: Math.max(0, Math.min(ListView.view.width, root.width - 40))
                 readonly property var pageRoot: root
                 readonly property bool matchesCurrentFilters: root.matchesFilters(index, countryName, countryCode, cityNames)
                 readonly property bool expanded: root.isCountryExpanded(countryCode, index)
@@ -375,14 +431,20 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
+                            Layout.fillWidth: true
                             text: countryName
                             font { family: Theme.fontFamily; pixelSize: 15; weight: Font.DemiBold }
                             color: Theme.textPrimary
+                            elide: Text.ElideRight
                         }
                         Text {
-                            text: root.locationsText(countryCode)
+                            Layout.fillWidth: true
+                            text: cityCount === 1
+                                  ? qsTr("1 Location")
+                                  : qsTr("%1 Locations").arg(cityCount)
                             font { family: Theme.fontFamily; pixelSize: 11 }
                             color: Theme.textSecondary
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -398,9 +460,13 @@ Rectangle {
                         color: Theme.primaryGreen
                     }
 
-                    Item {
-                        Layout.preferredWidth: 18
-                        Layout.preferredHeight: 18
+                    Rectangle {
+                        id: expandButton
+                        Layout.preferredWidth: 36
+                        Layout.preferredHeight: 36
+                        radius: 18
+                        color: expandMouse.pressed ? "#17243a" : "#101d32"
+                        border { width: 1; color: Theme.borderColor }
 
                         Rectangle {
                             width: 9
@@ -420,6 +486,12 @@ Rectangle {
                             anchors.horizontalCenterOffset: 3
                             rotation: countryDelegate.expanded ? 45 : -45
                         }
+
+                        MouseArea {
+                            id: expandMouse
+                            anchors.fill: parent
+                            onClicked: countryDelegate.pageRoot.toggleCountryExpanded(countryCode, index)
+                        }
                     }
                 }
 
@@ -436,7 +508,7 @@ Rectangle {
                         model: countryDelegate.visibleCityItems
 
                         Rectangle {
-                            width: parent.width
+                            width: Math.max(0, Math.min(parent.width, root.width - 88))
                             height: countryDelegate.cityRowHeight
                             radius: 14
                             color: cityMouse.pressed ? "#17243a" : "#101d32"
@@ -511,22 +583,32 @@ Rectangle {
                     id: delegateMouse
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    anchors.rightMargin: 50
                     anchors.top: parent.top
                     height: countryDelegate.rowHeight
                     enabled: parent.visible
                     onClicked: {
-                        if (mouse.x >= width - 44) {
-                            countryDelegate.pageRoot.toggleCountryExpanded(countryCode, index)
-                        } else {
-                            var defaultCode = defaultCountryCode || ""
-                            var selectionCode = defaultCode.length > 0 ? defaultCode : countryCode
-                            countryDelegate.selectLocation(index, selectionCode, countryName, "", countryName)
+                        if (countryDelegate.visibleCityItems.length > 0) {
+                            var firstCity = countryDelegate.visibleCityItems[0]
+                            var selectedIndex = firstCity.isDefault
+                                    ? countryDelegate.countryModelIndex : -1
+                            countryDelegate.selectLocation(selectedIndex, countryCode, countryName,
+                                                           firstCity.requestName,
+                                                           firstCity.isDefault ? countryName : firstCity.name)
+                            return
                         }
+
+                        var defaultCode = defaultCountryCode || ""
+                        var selectionCode = defaultCode.length > 0 ? defaultCode : countryCode
+                        countryDelegate.selectLocation(index, selectionCode, countryName, "", countryName)
                     }
                 }
             }
         }
     }
 
-    BottomTabBar { currentIndex: 1 }
+    BottomTabBar {
+        id: bottomTabBar
+        currentIndex: 1
+    }
 }

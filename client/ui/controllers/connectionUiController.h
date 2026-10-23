@@ -42,6 +42,7 @@ public slots:
     void openConnection();
     void openConnectionForServer(const QString &serverId);
     void closeConnection();
+    void clearPendingConnectionServer();
 
     bool isRevokeBlockedDuringActiveConnection(const QString &serverId, int containerIndex, const QString &clientId) const;
 
@@ -61,7 +62,8 @@ signals:
 
     void connectButtonClicked();
     void preparingConfig();
-    void prepareConfig();
+    void prepareConfig(const QString &serverId);
+    void peerDisconnectNotificationRequested(const QString &serverId);
     void unsupportedConnectDrawerRequested();
     void noInstalledContainers();
 
@@ -86,6 +88,8 @@ private:
     qint64 m_accumulatedConnectionDurationMs = 0;
     qint64 m_connectionDurationStartedAtMs = 0;
     bool m_isConnectionDurationActive = false;
+    QString m_connectionServerId;
+    bool m_notifyPeerDisconnectOnDisconnected = false;
 
     Vpn::ConnectionState m_state;
 };

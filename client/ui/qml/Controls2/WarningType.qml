@@ -10,9 +10,13 @@ import "TextTypes"
 Rectangle {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
     property string textColor: AmneziaStyle.color.paleGray
     property string backGroundColor: AmneziaStyle.color.onyxBlack
     property string imageColor: AmneziaStyle.color.paleGray
+    property string borderColor: AmneziaStyle.color.transparent
+    property int borderWidth: 0
+    property int cardRadius: 8
     property string textString
     property int textFormat: Text.PlainText
 
@@ -21,7 +25,9 @@ Rectangle {
     property real iconHeight: 16
 
     color: backGroundColor
-    radius: 8
+    border.color: root.borderColor
+    border.width: root.borderWidth
+    radius: root.cardRadius
     implicitHeight: content.implicitHeight + content.anchors.topMargin + content.anchors.bottomMargin
 
     RowLayout {
@@ -59,6 +65,7 @@ Rectangle {
             Layout.leftMargin: 8
 
             text: textString
+            font.family: root.fontFamily
             textFormat: root.textFormat
             color: textColor
         }

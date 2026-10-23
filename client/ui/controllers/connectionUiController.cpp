@@ -44,9 +44,12 @@ void ConnectionUiController::openConnectionForServer(const QString &serverId)
         return;
     }
 
+    m_connectionServerId = serverId;
+
     ErrorCode errorCode = m_connectionController->openConnection(serverId);
 
     if (errorCode != ErrorCode::NoError) {
+        m_connectionServerId.clear();
         m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
         notifyConnectionBlocked(errorCode);
         return;
@@ -55,7 +58,21 @@ void ConnectionUiController::openConnectionForServer(const QString &serverId)
 
 void ConnectionUiController::closeConnection()
 {
+    // This is the single public/manual disconnect entry point, including calls
+    // made directly from QML. Preserve the active session identity until the
+    // local VPN reports Disconnected, then send the advisory peer cleanup.
+    m_notifyPeerDisconnectOnDisconnected = !m_connectionServerId.isEmpty();
+    qWarning() << "ConnectionUiController::closeConnection"
+               << "serverId=" << m_connectionServerId
+               << "notifyPeerDisconnect=" << m_notifyPeerDisconnectOnDisconnected;
     m_connectionController->closeConnection();
+}
+
+void ConnectionUiController::clearPendingConnectionServer()
+{
+    if (m_state == Vpn::ConnectionState::Preparing) {
+        m_connectionServerId.clear();
+    }
 }
 
 ErrorCode ConnectionUiController::getLastConnectionError()
@@ -101,6 +118,17 @@ void ConnectionUiController::onConnectionStateChanged(Vpn::ConnectionState state
         m_downloadSpeedText = VpnConnection::bytesPerSecToText(0);
         m_uploadSpeedText = VpnConnection::bytesPerSecToText(0);
         emit speedChanged();
+        qWarning() << "ConnectionUiController::onConnectionStateChanged: disconnected"
+                   << "serverId=" << m_connectionServerId
+                   << "notifyPeerDisconnect=" << m_notifyPeerDisconnectOnDisconnected;
+        if (m_notifyPeerDisconnectOnDisconnected && !m_connectionServerId.isEmpty()) {
+            const QString disconnectedServerId = m_connectionServerId;
+            m_notifyPeerDisconnectOnDisconnected = false;
+            m_connectionServerId.clear();
+            qWarning() << "ConnectionUiController::onConnectionStateChanged: requesting peer disconnect notification"
+                       << "serverId=" << disconnectedServerId;
+            emit peerDisconnectNotificationRequested(disconnectedServerId);
+        }
         break;
     }
     case Vpn::ConnectionState::Disconnecting: {
@@ -240,6 +268,7 @@ void ConnectionUiController::toggleConnection()
 {
     qWarning() << "ConnectionUiController::toggleConnection ENTER m_state=" << static_cast<int>(m_state);
     if (m_state == Vpn::ConnectionState::Preparing) {
+        clearPendingConnectionServer();
         emit preparingConfig();
         return;
     }
@@ -260,7 +289,9 @@ void ConnectionUiController::toggleConnection()
             return;
         }
 
-        emit prepareConfig();
+        m_notifyPeerDisconnectOnDisconnected = false;
+        m_connectionServerId = serverId;
+        emit prepareConfig(serverId);
     }
 }
 

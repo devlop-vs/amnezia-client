@@ -9,6 +9,9 @@ import "TextTypes"
 RowLayout {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
+    property color leftTextColor: AmneziaStyle.color.paleGray
+    property color rightTextColor: AmneziaStyle.color.paleGray
     property string imageSource
     property string leftText
     property var rightText
@@ -29,6 +32,8 @@ RowLayout {
         Layout.alignment: Qt.AlignRight
 
         text: root.leftText
+        color: root.leftTextColor
+        font.family: root.fontFamily
     }
 
     ParagraphTextType {
@@ -37,6 +42,8 @@ RowLayout {
         Layout.alignment: Qt.AlignLeft
 
         text: root.isRightTextUndefined ? "" : root.rightText
+        color: root.rightTextColor
+        font.family: root.fontFamily
         textFormat: root.rightTextFormat
     }
 }

@@ -13,10 +13,12 @@ Rectangle {
 
     signal connectPressed()
     signal serverChangeRequested()
+    signal subscriptionRequested()
 
     property string countryCode: "GB"
     property string countryName: "United Kingdom"
     property string protocolName: ""
+    property bool showSubscriptionStatusBar: false
 
     function flagEmoji(countryCode) {
         var code = countryCode.toUpperCase()
@@ -79,6 +81,57 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 connected: false
                 onClicked: root.connectPressed()
+            }
+        }
+
+        // PageRedaVia owns and refreshes the current subscription state.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 58
+            Layout.leftMargin: 28
+            Layout.rightMargin: 28
+            radius: 20
+            color: Theme.cardBackground
+            visible: root.showSubscriptionStatusBar
+
+            opacity: 0
+            Component.onCompleted: opacity = 1
+            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutQuad } }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+
+                Row {
+                    spacing: 8
+
+                    Rectangle {
+                        width: 10; height: 10; radius: 5
+                        color: Theme.dangerRed
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                        text: "Subscribe to RedaVPN"
+                        font { family: Theme.fontFamily; pixelSize: 15; weight: Font.DemiBold }
+                        color: Theme.dangerRed
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "Choose Plan"
+                    font { family: Theme.fontFamily; pixelSize: 14 }
+                    color: Theme.textMuted
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.subscriptionRequested()
             }
         }
 

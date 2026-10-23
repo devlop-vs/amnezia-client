@@ -667,10 +667,12 @@ void SubscriptionUiController::validateConfig(const QString &serverId)
             || serviceProtocol == QStringLiteral("wireguard");
 
     if (isWireGuardConnection) {
-        // This is the single connect-intent /v1/config operation for an API
-        // WireGuard attempt. The backend must idempotently create/update the
-        // target peer before returning a usable configuration.
-        errorCode = m_subscriptionController->refreshWireGuardConfigForConnection(serverId);
+        bool reuseExistingConfig = false;
+        errorCode = m_subscriptionController->prepareWireGuardPeerConnection(serverId,
+                                                                              reuseExistingConfig);
+        if (errorCode == ErrorCode::NoError && !reuseExistingConfig) {
+            errorCode = m_subscriptionController->refreshWireGuardConfigForConnection(serverId);
+        }
     } else {
         const bool hasInstalledContainers = m_serversController->hasInstalledContainers(serverId);
         errorCode = m_subscriptionController->validateAndUpdateConfig(serverId, hasInstalledContainers);
@@ -687,6 +689,32 @@ void SubscriptionUiController::validateConfig(const QString &serverId)
     }
     refreshApiCountryModelFromServer(serverId);
     emit configValidated(serverId, true);
+}
+
+void SubscriptionUiController::notifyWireGuardPeerDisconnected(const QString &serverId)
+{
+    const auto apiV2 = m_serversController->apiV2Config(serverId);
+    const QString serviceProtocol = apiV2.has_value()
+            ? apiV2->serviceProtocol().trimmed().toLower()
+            : QString();
+    qInfo() << "SubscriptionUiController::notifyWireGuardPeerDisconnected"
+            << "serverId=" << serverId
+            << "serviceProtocol=" << serviceProtocol;
+    if (serviceProtocol != QStringLiteral("wireguard")
+            && serviceProtocol != QStringLiteral("awg")) {
+        qInfo() << "SubscriptionUiController::notifyWireGuardPeerDisconnected: skipped for non-WireGuard protocol"
+                << "serverId=" << serverId;
+        return;
+    }
+
+    const ErrorCode errorCode = m_subscriptionController->notifyWireGuardPeerDisconnected(serverId);
+    if (errorCode != ErrorCode::NoError) {
+        // Local disconnect is authoritative. A failed cleanup notification must
+        // not restore or otherwise change the client's disconnected state.
+        qWarning() << "SubscriptionUiController::notifyWireGuardPeerDisconnected: failed"
+                   << "serverId=" << serverId
+                   << "errorCode=" << static_cast<int>(errorCode);
+    }
 }
 
 void SubscriptionUiController::setCurrentProtocol(const QString &serverId, const QString &protocolName)
@@ -732,6 +760,20 @@ QString SubscriptionUiController::getVpnKey()
     return m_vpnKey;
 }
 
+QString SubscriptionUiController::loginAccountSubscriptionState() const
+{
+    return m_loginAccountSubscriptionState;
+}
+
+void SubscriptionUiController::setLoginAccountSubscriptionState(const QString &state)
+{
+    if (m_loginAccountSubscriptionState == state) {
+        return;
+    }
+    m_loginAccountSubscriptionState = state;
+    emit loginAccountSubscriptionStateChanged();
+}
+
 bool SubscriptionUiController::getAccountInfo(const QString &serverId, bool reload)
 {
     if (reload) {
@@ -752,12 +794,82 @@ bool SubscriptionUiController::getAccountInfo(const QString &serverId, bool relo
         return false;
     }
     m_apiAccountInfoModel->updateModel(accountInfo, apiV2->toJson());
+    updateApiCountryModel();
 
     if (reload) {
-        updateApiCountryModel();
         updateApiDevicesModel();
     }
 
+    return true;
+}
+
+void SubscriptionUiController::handleAccountLookupFinished(
+    ErrorCode errorCode,
+    const SubscriptionController::AccountLookupResult &result)
+{
+    if (errorCode != ErrorCode::NoError) {
+        setLoginAccountSubscriptionState(QStringLiteral("unknown"));
+        emit errorOccurred(errorCode);
+        return;
+    }
+
+    if (!result.accountInfo.isEmpty()) {
+        QString currentCountryCode;
+        QJsonObject serverConfig;
+        if (!result.restoredServerId.isEmpty()) {
+            const auto apiV2 = m_serversController->apiV2Config(result.restoredServerId);
+            if (apiV2.has_value()) {
+                currentCountryCode = apiV2->apiConfig.serverCountryCode;
+                serverConfig = apiV2->toJson();
+            }
+        }
+        m_apiAccountInfoModel->updateModel(result.accountInfo, serverConfig);
+        m_apiCountryModel->updateModel(
+            result.accountInfo.value(apiDefs::key::availableCountries).toArray(),
+            currentCountryCode);
+        m_apiCountryModel->updateIssuedConfigsInfo(
+            result.accountInfo.value(apiDefs::key::issuedConfigs).toArray());
+        updateApiDevicesModel();
+    }
+
+    switch (result.state) {
+    case SubscriptionController::AccountSubscriptionState::NoSubscription:
+        setLoginAccountSubscriptionState(QStringLiteral("none"));
+        return;
+    case SubscriptionController::AccountSubscriptionState::Expired:
+        setLoginAccountSubscriptionState(QStringLiteral("expired"));
+        return;
+    case SubscriptionController::AccountSubscriptionState::Active:
+        setLoginAccountSubscriptionState(QStringLiteral("active"));
+        break;
+    }
+
+    if (result.restoredServerId.isEmpty()) {
+        emit errorOccurred(ErrorCode::ApiConfigEmptyError);
+        return;
+    }
+
+    int preferredServerIndex = -1;
+    for (int index = 0; index < m_serversController->getServersCount(); ++index) {
+        if (m_serversController->getServerId(index) == result.restoredServerId) {
+            preferredServerIndex = index;
+            break;
+        }
+    }
+    emit installServerFromApiFinished(QString(), preferredServerIndex);
+}
+
+bool SubscriptionUiController::getAccountInfoByEmail(const QString &email)
+{
+    // SubscriptionController uses the application-wide QNetworkAccessManager
+    // and the server repositories. Keep the complete lookup/restore operation
+    // on their owning (UI) thread instead of invoking them from QtConcurrent.
+    QTimer::singleShot(0, this, [this, email]() {
+        SubscriptionController::AccountLookupResult result;
+        const ErrorCode errorCode =
+            m_subscriptionController->getAccountInfoByEmail(email, result);
+        handleAccountLookupFinished(errorCode, result);
+    });
     return true;
 }
 

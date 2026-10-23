@@ -36,6 +36,8 @@ public:
     Q_PROPERTY(QList<QString> qrCodes READ getQrCodes NOTIFY vpnKeyExportReady)
     Q_PROPERTY(int qrCodesCount READ getQrCodesCount NOTIFY vpnKeyExportReady)
     Q_PROPERTY(QString vpnKey READ getVpnKey NOTIFY vpnKeyExportReady)
+    Q_PROPERTY(QString loginAccountSubscriptionState READ loginAccountSubscriptionState
+               NOTIFY loginAccountSubscriptionStateChanged)
 
 public slots:
     bool exportNativeConfig(const QString &serverId, const QString &serverCountryCode, const QString &fileName);
@@ -59,6 +61,7 @@ public slots:
     bool deactivateExternalDevice(const QString &serverId, const QString &uuid, const QString &serverCountryCode);
 
     void validateConfig(const QString &serverId);
+    void notifyWireGuardPeerDisconnected(const QString &serverId);
 
     void setCurrentProtocol(const QString &serverId, const QString &protocolName);
     bool isVlessProtocol(const QString &serverId);
@@ -72,6 +75,7 @@ public slots:
     void removeServer(const QString &serverId);
 
     bool getAccountInfo(const QString &serverId, bool reload);
+    bool getAccountInfoByEmail(const QString &email);
     void getRenewalLink(const QString &serverId);
 
     void updateApiCountryModel();
@@ -91,6 +95,7 @@ signals:
     void resetServiceClientIdentityFailed(const QString &message);
     void updateServerFromApiFinished();
     void subscriptionRefreshNeeded();
+    void loginAccountSubscriptionStateChanged();
 
     void apiConfigRemoved(const QString &message);
     void apiServerRemoved(const QString &message);
@@ -117,6 +122,11 @@ private:
     QList<QString> getQrCodes();
     int getQrCodesCount();
     QString getVpnKey();
+    QString loginAccountSubscriptionState() const;
+    void setLoginAccountSubscriptionState(const QString &state);
+    void handleAccountLookupFinished(
+        ErrorCode errorCode,
+        const SubscriptionController::AccountLookupResult &result);
     QString googlePlayPlanKey(const QString &productId, const QString &productType, const QString &googlePlayBasePlanId) const;
     void refreshGooglePlayMinPriceLabel();
     struct GooglePlayMonthlyQuote {
@@ -127,6 +137,7 @@ private:
     QList<QString> m_qrCodes;
     QString m_vpnKey;
     QHash<QString, GooglePlayMonthlyQuote> m_googlePlayMonthlyPriceLabels;
+    QString m_loginAccountSubscriptionState = QStringLiteral("unknown");
 
     ServersController* m_serversController;
     ApiServicesModel* m_apiServicesModel;

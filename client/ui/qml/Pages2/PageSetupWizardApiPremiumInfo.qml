@@ -9,10 +9,17 @@ import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
 import "../Components"
+import "../RedaVia" as RedaVia
 import PageEnum 1.0
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     property int selectedPlanIndex: 0
     property string premiumHeaderName: ""
@@ -69,6 +76,9 @@ PageType {
 
                 headerText: root.premiumHeaderName
                 descriptionText: root.premiumHeaderDescription
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
             }
 
             Repeater {
@@ -89,6 +99,17 @@ PageType {
                     subtitle: String(model.subtitle)
                     showRecommendedBadge: !!model.recommended
                     recommendedText: qsTr("Recommended")
+                    fontFamily: RedaVia.Theme.fontFamily
+                    defaultColor: RedaVia.Theme.cardBackground
+                    selectedColor: RedaVia.Theme.cardBackgroundAlt
+                    defaultBorderColor: RedaVia.Theme.borderColor
+                    selectedBorderColor: RedaVia.Theme.primaryGreen
+                    primaryTextColor: RedaVia.Theme.textPrimary
+                    selectedTextColor: RedaVia.Theme.primaryGreen
+                    secondaryTextColor: RedaVia.Theme.textSecondary
+                    badgeColor: RedaVia.Theme.primaryGreen
+                    badgeTextColor: RedaVia.Theme.background
+                    cardRadius: RedaVia.Theme.cardRadius
 
                     onSelectRequested: root.selectedPlanIndex = index
                 }
@@ -101,7 +122,8 @@ PageType {
                 Layout.bottomMargin: 12
 
                 text: qsTr("Premium features")
-                color: AmneziaStyle.color.mutedGray
+                color: RedaVia.Theme.textSecondary
+                font.family: RedaVia.Theme.fontFamily
                 font.pixelSize: 13
             }
 
@@ -112,6 +134,13 @@ PageType {
                 Layout.bottomMargin: 24
 
                 benefitsModel: ApiBenefitsModel
+                fontFamily: RedaVia.Theme.fontFamily
+                panelColor: RedaVia.Theme.cardBackground
+                panelBorderColor: RedaVia.Theme.borderColor
+                titleColor: RedaVia.Theme.textPrimary
+                bodyColor: RedaVia.Theme.textSecondary
+                linkColor: RedaVia.Theme.primaryGreen
+                panelRadius: RedaVia.Theme.cardRadius
             }
 
             ColumnLayout {
@@ -126,7 +155,8 @@ PageType {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     textFormat: Text.PlainText
-                    color: AmneziaStyle.color.mutedGray
+                    color: RedaVia.Theme.textSecondary
+                    font.family: RedaVia.Theme.fontFamily
                     font.pixelSize: 12
 
                     text: {
@@ -138,6 +168,9 @@ PageType {
                 }
 
                 TermsAndPrivacyText {
+                    fontFamily: RedaVia.Theme.fontFamily
+                    textColor: RedaVia.Theme.textSecondary
+                    linkColorString: RedaVia.Theme.primaryGreen
                     termsUrl: (Qt.platform.os === "android" && IsGooglePlayBillingBuild)
                               ? String(ApiServicesModel.getSelectedServiceData("termsOfUseUrl"))
                               : "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
@@ -152,6 +185,10 @@ PageType {
                 Layout.bottomMargin: 24
 
                 visible: !(Qt.platform.os === "ios" || IsMacOsNeBuild || (Qt.platform.os === "android" && IsGooglePlayBillingBuild))
+
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textSecondary
+                linkColorString: RedaVia.Theme.primaryGreen
 
                 termsUrl: String(ApiServicesModel.getSelectedServiceData("termsOfUseUrl"))
                 privacyUrl: String(ApiServicesModel.getSelectedServiceData("privacyPolicyUrl"))
@@ -177,6 +214,14 @@ PageType {
             }
             return qsTr("Subscribe — %1 for %2").arg(String(plan.billingPeriod)).arg(String(plan.priceLabel))
         }
+
+        defaultColor: RedaVia.Theme.primaryGreen
+        hoveredColor: "#57ed86"
+        pressedColor: "#24c95a"
+        disabledColor: RedaVia.Theme.borderColor
+        textColor: RedaVia.Theme.background
+        fontFamily: RedaVia.Theme.fontFamily
+        buttonRadius: RedaVia.Theme.buttonRadius
 
         clickedFunc: function() {
             var plan = root.currentPlan

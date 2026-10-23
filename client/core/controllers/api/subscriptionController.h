@@ -18,6 +18,21 @@ class ServersController;
 class SubscriptionController
 {
 public:
+    enum class AccountSubscriptionState
+    {
+        NoSubscription,
+        Active,
+        Expired
+    };
+
+    struct AccountLookupResult
+    {
+        QJsonObject accountInfo;
+        AccountSubscriptionState state = AccountSubscriptionState::NoSubscription;
+        QString restoredServerId;
+        bool configRestored = false;
+    };
+
     struct ProtocolData
     {
         QString certRequest;
@@ -97,6 +112,8 @@ public:
 
     ErrorCode validateAndUpdateConfig(const QString &serverId, bool hasInstalledContainers);
     ErrorCode refreshWireGuardConfigForConnection(const QString &serverId);
+    ErrorCode prepareWireGuardPeerConnection(const QString &serverId, bool &reuseExistingConfig);
+    ErrorCode notifyWireGuardPeerDisconnected(const QString &serverId);
 
     void removeApiConfig(const QString &serverId);
 
@@ -106,6 +123,7 @@ public:
     bool isVlessProtocol(const QString &serverId) const;
 
     ErrorCode getAccountInfo(const QString &serverId, QJsonObject &accountInfo);
+    ErrorCode getAccountInfoByEmail(const QString &email, AccountLookupResult &result);
     QFuture<QPair<ErrorCode, QString>> getRenewalLink(const QString &serverId);
 
     struct AppStoreRestoreResult
@@ -137,6 +155,11 @@ public:
 
 private:
     QJsonObject authDataWithUserEmail(QJsonObject authData) const;
+    AccountSubscriptionState accountSubscriptionState(const QJsonObject &accountInfo) const;
+    ErrorCode restoreAccountConfigByEmail(const QString &email, const QJsonObject &accountInfo,
+                                          QString &serverId, bool &configRestored);
+    ErrorCode buildWireGuardPeerRequest(const QString &serverId, QJsonObject &apiPayload,
+                                        bool &isTestPurchase) const;
     QString makeGooglePlayObfuscatedAccountId(const QString &userId) const;
     ErrorCode executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody, bool isTestPurchase = false,
                              int timeoutMsecs = -1);

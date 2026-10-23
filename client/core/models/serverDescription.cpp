@@ -169,13 +169,11 @@ ServerDescription buildServerDescription(const ApiV2ServerConfig &server, bool /
     row.adEndpoint = server.apiConfig.serviceInfo.adEndpoint;
     row.isRenewalAvailable = server.apiConfig.serviceInfo.isRenewalAvailable;
 
-    if (!server.apiConfig.isInAppPurchase) {
-        if (server.apiConfig.subscriptionExpiredByServer) {
-            row.isSubscriptionExpired = true;
-        } else if (!server.apiConfig.subscription.endDate.isEmpty()) {
-            row.isSubscriptionExpired = apiUtils::isSubscriptionExpired(server.apiConfig.subscription.endDate);
-            row.isSubscriptionExpiringSoon = apiUtils::isSubscriptionExpiringSoon(server.apiConfig.subscription.endDate);
-        }
+    if (server.apiConfig.subscriptionExpiredByServer) {
+        row.isSubscriptionExpired = true;
+    } else if (!server.apiConfig.subscription.endDate.isEmpty()) {
+        row.isSubscriptionExpired = apiUtils::isSubscriptionExpired(server.apiConfig.subscription.endDate);
+        row.isSubscriptionExpiringSoon = apiUtils::isSubscriptionExpiringSoon(server.apiConfig.subscription.endDate);
     }
 
     const QString fullDescriptionForCollapsed = row.baseDescription;

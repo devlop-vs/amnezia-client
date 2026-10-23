@@ -12,9 +12,16 @@ Button {
     property string headerText
     property string bodyText
     property string footerText
+    property string fontFamily: "PT Root UI VF"
 
     property color headerTextColor: AmneziaStyle.color.paleGray
     property color bodyTextColor: AmneziaStyle.color.mutedGray
+    property color footerTextColor: AmneziaStyle.color.mutedGray
+    property color recommendedTextColor: AmneziaStyle.color.midnightBlack
+    property color recommendedBackgroundColor: AmneziaStyle.color.softViolet
+    property color cardBorderColor: AmneziaStyle.color.transparent
+    property int cardBorderWidth: 0
+    property int cardRadius: 16
     property bool showRecommendedBadge: false
     property string recommendedText: ""
 
@@ -39,9 +46,11 @@ Button {
         id: backgroundRect
 
         anchors.fill: parent
-        radius: 16
+        radius: root.cardRadius
 
         color: root.hovered && root.enabled ? root.hoveredColor : root.defaultColor
+        border.color: root.cardBorderColor
+        border.width: root.cardBorderWidth
 
         Behavior on color {
             PropertyAnimation { duration: 200 }
@@ -83,7 +92,7 @@ Button {
                     anchors.verticalCenter: parent.top
 
                     radius: 10
-                    color: AmneziaStyle.color.softViolet
+                    color: root.recommendedBackgroundColor
                     implicitHeight: recLabel.implicitHeight + 8
                     implicitWidth: recLabel.implicitWidth + 16
 
@@ -95,6 +104,8 @@ Button {
 
                         anchors.centerIn: parent
                         text: root.recommendedText
+                        color: root.recommendedTextColor
+                        font.family: root.fontFamily
                     }
                 }
             }
@@ -123,6 +134,7 @@ Button {
                         visible: text !== ""
 
                         color: root.headerTextColor
+                        font.family: root.fontFamily
 
                         Layout.fillWidth: true
                         Layout.rightMargin: 16
@@ -138,6 +150,7 @@ Button {
                         visible: text !== ""
 
                         color: root.bodyTextColor
+                        font.family: root.fontFamily
                         textFormat: Text.RichText
                         onLinkActivated: function(link) {
                             Qt.openUrlExternally(link)
@@ -155,7 +168,8 @@ Button {
                         text: root.footerText
                         visible: text !== ""
 
-                        color: AmneziaStyle.color.mutedGray
+                        color: root.footerTextColor
+                        font.family: root.fontFamily
 
                         Layout.fillWidth: true
                         Layout.rightMargin: 16

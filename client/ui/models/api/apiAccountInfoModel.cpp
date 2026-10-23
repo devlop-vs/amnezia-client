@@ -83,9 +83,6 @@ QVariant ApiAccountInfoModel::data(const QModelIndex &index, int role) const
         if (m_accountInfoData.configType == serverConfigUtils::ConfigType::AmneziaFreeV3) {
             return false;
         }
-        if (m_accountInfoData.isInAppPurchase) {
-            return false;
-        }
         if (m_accountInfoData.subscriptionEndDate.isEmpty()) {
             return false;
         }

@@ -14,14 +14,25 @@ Rectangle {
     property string subtitle: ""
     property bool showRecommendedBadge: false
     property string recommendedText: "Recommended"
+    property string fontFamily: "PT Root UI VF"
+    property color defaultColor: AmneziaStyle.color.transparent
+    property color selectedColor: AmneziaStyle.color.transparent
+    property color defaultBorderColor: AmneziaStyle.color.charcoalGray
+    property color selectedBorderColor: AmneziaStyle.color.goldenApricot
+    property color primaryTextColor: AmneziaStyle.color.paleGray
+    property color selectedTextColor: AmneziaStyle.color.goldenApricot
+    property color secondaryTextColor: AmneziaStyle.color.mutedGray
+    property color badgeColor: AmneziaStyle.color.softViolet
+    property color badgeTextColor: AmneziaStyle.color.midnightBlack
+    property int cardRadius: 16
 
     signal selectRequested
 
     implicitHeight: cardLayout.implicitHeight + 28
-    radius: 16
-    color: AmneziaStyle.color.transparent
+    radius: root.cardRadius
+    color: selected ? root.selectedColor : root.defaultColor
     border.width: selected ? 2 : 1
-    border.color: selected ? AmneziaStyle.color.goldenApricot : AmneziaStyle.color.charcoalGray
+    border.color: selected ? root.selectedBorderColor : root.defaultBorderColor
 
     ColumnLayout {
         id: cardLayout
@@ -41,7 +52,8 @@ Rectangle {
             LabelTextType {
                 Layout.fillWidth: true
                 text: root.billingPeriod
-                color: root.selected ? AmneziaStyle.color.goldenApricot : AmneziaStyle.color.paleGray
+                color: root.selected ? root.selectedTextColor : root.primaryTextColor
+                font.family: root.fontFamily
                 font.pixelSize: 17
                 font.weight: Font.DemiBold
                 wrapMode: Text.Wrap
@@ -49,7 +61,8 @@ Rectangle {
 
             LabelTextType {
                 text: root.priceLabel
-                color: root.selected ? AmneziaStyle.color.goldenApricot : AmneziaStyle.color.paleGray
+                color: root.selected ? root.selectedTextColor : root.primaryTextColor
+                font.family: root.fontFamily
                 font.pixelSize: 17
                 font.weight: Font.DemiBold
             }
@@ -62,7 +75,8 @@ Rectangle {
             LabelTextType {
                 Layout.fillWidth: true
                 text: root.subtitle
-                color: AmneziaStyle.color.mutedGray
+                color: root.secondaryTextColor
+                font.family: root.fontFamily
                 font.pixelSize: 13
                 wrapMode: Text.Wrap
             }
@@ -71,7 +85,7 @@ Rectangle {
                 visible: root.showRecommendedBadge
                 Layout.alignment: Qt.AlignVCenter
                 radius: 10
-                color: AmneziaStyle.color.softViolet
+                color: root.badgeColor
                 implicitHeight: recLabel.implicitHeight + 8
                 implicitWidth: recLabel.implicitWidth + 16
 
@@ -80,7 +94,8 @@ Rectangle {
 
                     anchors.centerIn: parent
                     text: root.recommendedText
-                    color: AmneziaStyle.color.midnightBlack
+                    color: root.badgeTextColor
+                    font.family: root.fontFamily
                     font.pixelSize: 11
                     font.weight: Font.Medium
                 }

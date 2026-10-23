@@ -13,9 +13,16 @@ import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
 import "../Components"
+import "../RedaVia" as RedaVia
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     function openPageCompatible(pageEnum, slide) {
         var pagePath = PageController.getPagePath(pageEnum)
@@ -124,6 +131,8 @@ PageType {
         id: listView
 
         anchors.fill: parent
+        palette.base: RedaVia.Theme.background
+        palette.window: RedaVia.Theme.background
 
         model: labelsModel
 
@@ -149,6 +158,7 @@ PageType {
                 Layout.bottomMargin: root.isSubscriptionExpired || root.isSubscriptionExpiringSoon ? 0 : 10
 
                 actionButtonImage: "qrc:/images/controls/edit-3.svg"
+                fontFamily: RedaVia.Theme.fontFamily
 
                 headerText: root.processedServer != null ? root.processedServer.name : ""
 
@@ -168,10 +178,11 @@ PageType {
                 text: root.isSubscriptionExpired
                     ? qsTr("Subscription expired")
                     : qsTr("Subscription expiring soon")
+                font.family: RedaVia.Theme.fontFamily
 
                 color: root.isSubscriptionExpired
-                    ? AmneziaStyle.color.vibrantRed
-                    : AmneziaStyle.color.goldenApricot
+                    ? RedaVia.Theme.dangerRed
+                    : RedaVia.Theme.accentYellow
             }
 
             ParagraphTextType {
@@ -184,7 +195,8 @@ PageType {
                 Layout.bottomMargin: root.isSubscriptionExpired || root.isSubscriptionExpiringSoon ? 0 : 10
 
                 text: ApiAccountInfoModel.data("serviceDescription")
-                color: AmneziaStyle.color.mutedGray
+                color: RedaVia.Theme.textSecondary
+                font.family: RedaVia.Theme.fontFamily
             }
 
             BasicButtonType {
@@ -199,10 +211,11 @@ PageType {
 
                 text: qsTr("Renew subscription")
 
-                defaultColor: AmneziaStyle.color.paleGray
-                hoveredColor: AmneziaStyle.color.lightGray
-                pressedColor: AmneziaStyle.color.mutedGray
-                textColor: AmneziaStyle.color.midnightBlack
+                defaultColor: RedaVia.Theme.primaryGreen
+                hoveredColor: "#57ed86"
+                pressedColor: "#24c95a"
+                textColor: RedaVia.Theme.background
+                fontFamily: RedaVia.Theme.fontFamily
 
                 clickedFunc: function() {
                     SubscriptionUiController.getRenewalLink(ServersUiController.processedServerId)
@@ -222,18 +235,35 @@ PageType {
                 }
             }
 
-            LabelWithImageType {
-                id: delegateItem
-
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.margins: 16
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 6
+                Layout.bottomMargin: 6
 
-                imageSource: objectImageSource
-                leftText: title
-                rightText: ApiAccountInfoModel.data(contentKey)
-                rightTextFormat: isRichText ? Text.RichText : Text.PlainText
+                implicitHeight: 64
+                color: RedaVia.Theme.cardBackground
+                border.color: RedaVia.Theme.borderColor
+                border.width: 1
+                radius: RedaVia.Theme.buttonRadius
+                visible: delegateItem.rightText !== ""
 
-                visible: rightText !== ""
+                LabelWithImageType {
+                    id: delegateItem
+
+                    anchors.fill: parent
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+
+                    imageSource: objectImageSource
+                    leftText: title
+                    rightText: ApiAccountInfoModel.data(contentKey)
+                    rightTextFormat: isRichText ? Text.RichText : Text.PlainText
+                    fontFamily: RedaVia.Theme.fontFamily
+                    leftTextColor: RedaVia.Theme.textPrimary
+                    rightTextColor: RedaVia.Theme.textSecondary
+                }
             }
         }
 
@@ -255,12 +285,13 @@ PageType {
 
                 implicitHeight: 25
 
-                defaultColor: AmneziaStyle.color.transparent
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                textColor: AmneziaStyle.color.goldenApricot
+                defaultColor: "transparent"
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.cardBackground
+                textColor: RedaVia.Theme.primaryGreen
+                fontFamily: RedaVia.Theme.fontFamily
                 leftImageSource: "qrc:/images/controls/refresh-cw.svg"
-                leftImageColor: AmneziaStyle.color.goldenApricot
+                leftImageColor: RedaVia.Theme.primaryGreen
 
                 text: qsTr("Renew subscription")
 
@@ -272,6 +303,7 @@ PageType {
             DividerType {
                 visible: !root.isSubscriptionExpired && !root.isSubscriptionExpiringSoon
                     && root.isSubscriptionRenewalAvailable && !root.isInAppPurchase
+                color: RedaVia.Theme.borderColor
             }
 
             SwitcherType {
@@ -281,15 +313,31 @@ PageType {
                 readonly property bool isProtocolSwitchBlocked: ServersUiController.isDefaultServerCurrentlyProcessed() && ConnectionController.isConnected
 
                 Layout.fillWidth: true
-                Layout.topMargin: 24
+                Layout.topMargin: 16
                 Layout.rightMargin: 16
                 Layout.leftMargin: 16
-                Layout.bottomMargin: 24
+                Layout.bottomMargin: 16
+
+                leftPadding: 16
+                rightPadding: 16
+                implicitHeight: 72
 
                 visible: ApiAccountInfoModel.data("isProtocolSelectionSupported")
                 enabled: !switcher.isProtocolSwitchBlocked
 
                 text: qsTr("Use VLESS protocol")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.connectedInner
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.primaryGreen
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
                 checked: switcher.isVlessProtocol
                 onToggled: function() {
                     if (ServersUiController.isDefaultServerCurrentlyProcessed() && ConnectionController.isConnected) {
@@ -303,10 +351,6 @@ PageType {
                 }
             }
 
-            DividerType {
-                visible: footer.isVisibleForAmneziaFree
-            }
-
             WarningType {
                 id: warning
 
@@ -315,7 +359,13 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.fillWidth: true
 
-                backGroundColor: AmneziaStyle.color.translucentRichBrown
+                backGroundColor: RedaVia.Theme.cardBackgroundAlt
+                borderColor: RedaVia.Theme.borderColor
+                borderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textBody
+                imageColor: RedaVia.Theme.accentYellow
+                fontFamily: RedaVia.Theme.fontFamily
 
                 textString: qsTr("Configurations have been updated for some countries. Download and install the updated configuration files")
 
@@ -334,12 +384,23 @@ PageType {
                 id: vpnKey
 
                 Layout.fillWidth: true
-                Layout.topMargin: warning.visible ? 16 : 0
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: warning.visible ? 16 : 8
+                Layout.bottomMargin: 8
 
                 visible: footer.isVisibleForAmneziaFree
 
                 text: qsTr("Subscription Key")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textSecondary
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
 
                 clickedFunction: function() {
                     root.openPageCompatible(PageEnum.PageSettingsApiSubscriptionKey)
@@ -351,19 +412,26 @@ PageType {
                 }
             }
 
-            DividerType {
-                visible: footer.isVisibleForAmneziaFree
-            }
-
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.bottomMargin: 8
 
                 visible: footer.isVisibleForAmneziaFree
 
                 text: qsTr("Configuration Files")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textSecondary
 
                 descriptionText: qsTr("Manage configuration files")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
 
                 clickedFunction: function() {
                     SubscriptionUiController.updateApiCountryModel()
@@ -371,19 +439,26 @@ PageType {
                 }
             }
 
-            DividerType {
-                visible: footer.isVisibleForAmneziaFree
-            }
-
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.bottomMargin: 8
 
                 visible: footer.isVisibleForAmneziaFree
 
                 text: qsTr("Active Devices")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textSecondary
 
                 descriptionText: qsTr("Manage currently connected devices")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
 
                 clickedFunction: function() {
                     SubscriptionUiController.updateApiDevicesModel()
@@ -391,39 +466,51 @@ PageType {
                 }
             }
 
-            DividerType {
-                visible: footer.isVisibleForAmneziaFree
-            }
-
             LabelWithButtonType {
                 Layout.fillWidth: true
-                Layout.topMargin: footer.isVisibleForAmneziaFree ? 0 : 32
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: footer.isVisibleForAmneziaFree ? 0 : 16
+                Layout.bottomMargin: 8
 
                 text: qsTr("Support")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textSecondary
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
 
                 clickedFunction: function() {
                     root.openPageCompatible(PageEnum.PageSettingsApiSupport)
                 }
             }
 
-            DividerType {}
-
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.bottomMargin: 8
 
                 visible: footer.isVisibleForAmneziaFree
 
                 text: qsTr("How to connect on another device")
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textSecondary
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
 
                 clickedFunction: function() {
                     root.openPageCompatible(PageEnum.PageSettingsApiInstructions)
                 }
-            }
-
-            DividerType {
-                visible: footer.isVisibleForAmneziaFree
             }
 
             BasicButtonType {
@@ -435,9 +522,10 @@ PageType {
                 implicitHeight: 32
 
                 defaultColor: "transparent"
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                textColor: AmneziaStyle.color.vibrantRed
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.cardBackground
+                textColor: RedaVia.Theme.dangerRed
+                fontFamily: RedaVia.Theme.fontFamily
 
                 text: qsTr("Reload API config")
 
@@ -472,9 +560,10 @@ PageType {
                 visible: footer.isVisibleForAmneziaFree
 
                 defaultColor: "transparent"
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                textColor: AmneziaStyle.color.vibrantRed
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.cardBackground
+                textColor: RedaVia.Theme.dangerRed
+                fontFamily: RedaVia.Theme.fontFamily
 
                 text: qsTr("Unlink this device")
 
@@ -510,9 +599,10 @@ PageType {
                 implicitHeight: 32
 
                 defaultColor: "transparent"
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                textColor: AmneziaStyle.color.vibrantRed
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.cardBackground
+                textColor: RedaVia.Theme.dangerRed
+                fontFamily: RedaVia.Theme.fontFamily
 
                 text: qsTr("Remove from application")
 

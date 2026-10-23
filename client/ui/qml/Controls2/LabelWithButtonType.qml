@@ -10,6 +10,11 @@ import "TextTypes"
 Item {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
+    property color cardColor: AmneziaStyle.color.transparent
+    property color cardBorderColor: AmneziaStyle.color.transparent
+    property int cardBorderWidth: 0
+    property int cardRadius: 0
     // property alias focusObjectName: eyeImage.objectName
     property string text
     property int textMaximumLineCount: 2
@@ -71,6 +76,15 @@ Item {
     
     implicitWidth: content.implicitWidth + content.anchors.topMargin + content.anchors.bottomMargin
     implicitHeight: content.implicitHeight + content.anchors.leftMargin + content.anchors.rightMargin
+
+    Rectangle {
+        anchors.fill: parent
+        z: -1
+        color: root.cardColor
+        border.color: root.cardBorderColor
+        border.width: root.cardBorderWidth
+        radius: root.cardRadius
+    }
 
     MouseArea {
         id: mouseArea
@@ -179,6 +193,7 @@ Item {
 
                 lineHeight: root.descriptionOnTop ? parent.descriptionTextLineHeight : parent.textLineHeight
                 font.pixelSize: root.descriptionOnTop ? parent.descriptionTextSize : parent.textPixelSize
+                font.family: root.fontFamily
                 font.letterSpacing: root.descriptionOnTop ? 0.02 : 0
 
                 horizontalAlignment: Text.AlignLeft
@@ -210,6 +225,7 @@ Item {
 
                 lineHeight: root.descriptionOnTop ? parent.textLineHeight : parent.descriptionTextLineHeight
                 font.pixelSize: root.descriptionOnTop ? parent.textPixelSize : parent.descriptionTextSize
+                font.family: root.fontFamily
                 font.letterSpacing: root.descriptionOnTop ? 0 : 0.02
 
                 horizontalAlignment: Text.AlignLeft

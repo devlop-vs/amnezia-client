@@ -1432,6 +1432,101 @@ ErrorCode SubscriptionController::refreshWireGuardConfigForConnection(const QStr
     return ErrorCode::NoError;
 }
 
+ErrorCode SubscriptionController::buildWireGuardPeerRequest(const QString &serverId,
+                                                             QJsonObject &apiPayload,
+                                                             bool &isTestPurchase) const
+{
+    const auto apiV2 = m_serversRepository->apiV2Config(serverId);
+    if (!apiV2.has_value()) {
+        return ErrorCode::ApiConfigEmptyError;
+    }
+
+    const QString serviceProtocol = apiV2->serviceProtocol().trimmed().toLower();
+    if (!isWireGuardKeyExchangeProtocol(serviceProtocol)) {
+        return ErrorCode::InternalError;
+    }
+
+    const ProtocolData protocolData = reusableProtocolIdentity(*apiV2, serviceProtocol);
+    if (!hasReusableProtocolIdentity(serviceProtocol, protocolData)) {
+        return ErrorCode::ApiConfigEmptyError;
+    }
+
+    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
+                                            QString(APP_VERSION),
+                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getInstallationUuid(true),
+                                            apiV2->apiConfig.userCountryCode,
+                                            apiV2->apiConfig.serverCountryCode,
+                                            apiV2->apiConfig.serverCountryName,
+                                            apiV2->serviceType(),
+                                            serviceProtocol,
+                                            authDataWithUserEmail(apiV2->authData.toJson()) };
+
+    apiPayload = gatewayRequestData.toJsonObject();
+    appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
+    isTestPurchase = apiV2->apiConfig.isTestPurchase;
+    return ErrorCode::NoError;
+}
+
+ErrorCode SubscriptionController::prepareWireGuardPeerConnection(const QString &serverId,
+                                                                  bool &reuseExistingConfig)
+{
+    reuseExistingConfig = false;
+
+    QJsonObject apiPayload;
+    bool isTestPurchase = false;
+    ErrorCode errorCode = buildWireGuardPeerRequest(serverId, apiPayload, isTestPurchase);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    QByteArray responseBody;
+    errorCode = executeRequest(QStringLiteral("%1v1/peer/connect"), apiPayload, responseBody,
+                               isTestPurchase, configRequestTimeoutMsecs);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument responseDocument = QJsonDocument::fromJson(responseBody, &parseError);
+    const QJsonObject responseObject = responseDocument.object();
+    if (parseError.error != QJsonParseError::NoError
+            || !responseDocument.isObject()
+            || !responseObject.value(QStringLiteral("success")).isBool()
+            || !responseObject.value(QStringLiteral("success")).toBool()
+            || !responseObject.value(QStringLiteral("reuse_existing_config")).isBool()) {
+        qWarning() << "SubscriptionController::prepareWireGuardPeerConnection: invalid response"
+                   << "serverId=" << serverId
+                   << "parseError=" << parseError.errorString();
+        return ErrorCode::ApiUpdateRequestError;
+    }
+
+    reuseExistingConfig = responseObject.value(QStringLiteral("reuse_existing_config")).toBool();
+    qInfo() << "SubscriptionController::prepareWireGuardPeerConnection: completed"
+            << "serverId=" << serverId
+            << "reuseExistingConfig=" << reuseExistingConfig;
+    return ErrorCode::NoError;
+}
+
+ErrorCode SubscriptionController::notifyWireGuardPeerDisconnected(const QString &serverId)
+{
+    QJsonObject apiPayload;
+    bool isTestPurchase = false;
+    ErrorCode errorCode = buildWireGuardPeerRequest(serverId, apiPayload, isTestPurchase);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    QByteArray responseBody;
+    errorCode = executeRequest(QStringLiteral("%1v1/peer/disconnect"), apiPayload, responseBody,
+                               isTestPurchase, configRequestTimeoutMsecs);
+    if (errorCode == ErrorCode::NoError) {
+        qInfo() << "SubscriptionController::notifyWireGuardPeerDisconnected: completed"
+                << "serverId=" << serverId;
+    }
+    return errorCode;
+}
+
 void SubscriptionController::removeApiConfig(const QString &serverId)
 {
     auto apiV2 = m_serversRepository->apiV2Config(serverId);
@@ -1717,8 +1812,11 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
         return ErrorCode::InternalError;
     }
     bool isTestPurchase = apiV2->apiConfig.isTestPurchase;
-    
+
+    const QString userEmail = m_appSettingsRepository->getAuthUserEmail();
     QJsonObject authDataJson = apiV2->authData.toJson();
+    authDataJson[apiDefs::key::apiKey] = userEmail;
+    authDataJson[apiDefs::key::email] = userEmail;
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
                                             m_appSettingsRepository->getAppLanguage().name().split("_").first(),
@@ -1742,19 +1840,291 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
 
     accountInfo = QJsonDocument::fromJson(responseBody).object();
 
+    ApiV2ServerConfig updatedApiV2 = *apiV2;
+    bool configChanged = false;
+
+    if (accountInfo.contains(apiDefs::key::subscriptionEndDate)) {
+        updatedApiV2.apiConfig.subscription.endDate =
+            accountInfo.value(apiDefs::key::subscriptionEndDate).toString();
+        updatedApiV2.apiConfig.subscriptionExpiredByServer = false;
+        configChanged = true;
+    }
+
     if (accountInfo.contains(apiDefs::key::availableCountries)) {
-        ApiV2ServerConfig updatedApiV2 = *apiV2;
         updatedApiV2.apiConfig.availableCountries = accountInfo.value(apiDefs::key::availableCountries).toArray();
+        configChanged = true;
+    }
 
-        if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
-            updatedApiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
-        }
+    if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
+        updatedApiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+        configChanged = true;
+    }
 
+    if (configChanged) {
         m_serversRepository->editServer(serverId, updatedApiV2.toJson(),
                                        serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
     }
 
     return ErrorCode::NoError;
+}
+
+SubscriptionController::AccountSubscriptionState SubscriptionController::accountSubscriptionState(
+    const QJsonObject &accountInfo) const
+{
+    QString explicitStatus = accountInfo.value(apiDefs::key::subscriptionStatus)
+                                 .toString().trimmed().toLower();
+    if (explicitStatus.isEmpty()) {
+        explicitStatus = accountInfo.value(apiDefs::key::subscriptionState)
+                             .toString().trimmed().toLower();
+    }
+    if (explicitStatus.startsWith(QStringLiteral("subscription_state_"))) {
+        explicitStatus.remove(0, QStringLiteral("subscription_state_").size());
+    }
+
+    if (explicitStatus == QStringLiteral("expired")
+            || explicitStatus == QStringLiteral("inactive")) {
+        return AccountSubscriptionState::Expired;
+    }
+    if (explicitStatus == QStringLiteral("active")
+            || explicitStatus == QStringLiteral("expire_soon")) {
+        return AccountSubscriptionState::Active;
+    }
+
+    const QString subscriptionEndDate = accountInfo.value(apiDefs::key::subscriptionEndDate)
+                                            .toString().trimmed();
+    if (subscriptionEndDate.isEmpty()) {
+        return AccountSubscriptionState::NoSubscription;
+    }
+    return apiUtils::isSubscriptionExpired(subscriptionEndDate)
+            ? AccountSubscriptionState::Expired
+            : AccountSubscriptionState::Active;
+}
+
+ErrorCode SubscriptionController::restoreAccountConfigByEmail(const QString &email,
+                                                               const QJsonObject &accountInfo,
+                                                               QString &serverId,
+                                                               bool &configRestored)
+{
+    configRestored = false;
+    serverId.clear();
+
+    QString serviceType = accountInfo.value(apiDefs::key::serviceType).toString().trimmed();
+    if (serviceType.isEmpty()) {
+        serviceType = QStringLiteral("amnezia-premium");
+    }
+    const QString subscriptionEndDate = accountInfo.value(apiDefs::key::subscriptionEndDate).toString();
+
+    // Reuse an already restored account config instead of creating a duplicate on every login.
+    for (int i = 0; i < m_serversRepository->serversCount(); ++i) {
+        const QString existingServerId = m_serversRepository->serverIdAt(i);
+        const auto existingApiV2 = m_serversRepository->apiV2Config(existingServerId);
+        if (!existingApiV2.has_value()
+            || existingApiV2->serviceType() != serviceType
+            || existingApiV2->authData.apiKey.trimmed().compare(email, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+
+        ApiV2ServerConfig updatedApiV2 = *existingApiV2;
+        updatedApiV2.authData.apiKey = email;
+        updatedApiV2.apiConfig.subscription.endDate = subscriptionEndDate;
+        updatedApiV2.apiConfig.subscriptionExpiredByServer = false;
+        if (accountInfo.contains(apiDefs::key::availableCountries)) {
+            updatedApiV2.apiConfig.availableCountries =
+                accountInfo.value(apiDefs::key::availableCountries).toArray();
+        }
+        if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
+            updatedApiV2.apiConfig.supportedProtocols =
+                accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+        }
+        m_serversRepository->editServer(existingServerId, updatedApiV2.toJson(),
+                                        serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
+        serverId = existingServerId;
+        return ErrorCode::NoError;
+    }
+
+    QString serviceProtocol = accountInfo.value(apiDefs::key::serviceProtocol).toString().trimmed().toLower();
+    if (serviceProtocol.isEmpty()) {
+        const QJsonArray supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+        for (const QJsonValue &protocolValue : supportedProtocols) {
+            serviceProtocol = protocolValue.isString()
+                    ? protocolValue.toString().trimmed().toLower()
+                    : protocolValue.toObject().value(apiDefs::key::serviceProtocol)
+                          .toString().trimmed().toLower();
+            if (serviceProtocol.isEmpty()) {
+                serviceProtocol = protocolValue.toObject().value(QStringLiteral("protocol"))
+                                      .toString().trimmed().toLower();
+            }
+            if (!serviceProtocol.isEmpty()) {
+                break;
+            }
+        }
+    }
+    if (serviceProtocol.isEmpty()) {
+        qWarning().noquote() << "[ACCOUNT] Active subscription response has no service protocol; cannot restore config";
+        return ErrorCode::ApiConfigEmptyError;
+    }
+
+    QString userCountryCode = accountInfo.value(apiDefs::key::userCountryCode).toString();
+    if (userCountryCode.isEmpty()) {
+        const QJsonArray availableCountries = accountInfo.value(apiDefs::key::availableCountries).toArray();
+        if (!availableCountries.isEmpty()) {
+            const QJsonValue countryValue = availableCountries.first();
+            if (countryValue.isString()) {
+                userCountryCode = countryValue.toString();
+            } else {
+                const QJsonObject countryObject = countryValue.toObject();
+                userCountryCode = countryObject.value(apiDefs::key::serverCountryCode).toString();
+                if (userCountryCode.isEmpty()) {
+                    userCountryCode = countryObject.value(QStringLiteral("country_code")).toString();
+                }
+            }
+        }
+    }
+    const ProtocolData protocolData = generateProtocolData(serviceProtocol);
+    const QJsonObject authData {
+        { apiDefs::key::apiKey, email },
+        { apiDefs::key::email, email }
+    };
+    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
+                                            QString(APP_VERSION),
+                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getInstallationUuid(true),
+                                            userCountryCode,
+                                            "",
+                                            "",
+                                            serviceType,
+                                            serviceProtocol,
+                                            authData };
+
+    QJsonObject apiPayload = gatewayRequestData.toJsonObject();
+    apiPayload[apiDefs::key::cliVersion] = QString(APP_VERSION);
+    appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
+
+    QByteArray responseBody;
+    ErrorCode errorCode = executeRequest(QString("%1v1/config"), apiPayload, responseBody,
+                                         false, configRequestTimeoutMsecs);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    QJsonObject serverConfigJson;
+    errorCode = extractServerConfigJsonFromResponse(responseBody, serviceProtocol,
+                                                    protocolData, serverConfigJson);
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    updateApiConfigInJson(serverConfigJson, serviceType, serviceProtocol,
+                          userCountryCode, responseBody);
+    if (serverConfigJson.value(configKey::configVersion).toInt()
+            != serverConfigUtils::ConfigSource::AmneziaGateway) {
+        return ErrorCode::InternalError;
+    }
+
+    ApiV2ServerConfig apiV2 = ApiV2ServerConfig::fromJson(serverConfigJson);
+    alignDefaultContainerWithServiceProtocol(apiV2, serviceProtocol);
+    applyProtocolIdentityToApiConfig(apiV2.apiConfig, serviceProtocol, protocolData);
+    apiV2.authData.apiKey = email;
+    apiV2.apiConfig.subscription.endDate = subscriptionEndDate;
+    apiV2.apiConfig.subscriptionExpiredByServer = false;
+    if (accountInfo.contains(apiDefs::key::availableCountries)) {
+        apiV2.apiConfig.availableCountries = accountInfo.value(apiDefs::key::availableCountries).toArray();
+    }
+    if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
+        apiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+    }
+
+    const QJsonObject restoredConfig = apiV2.toJson();
+    serverId = m_serversRepository->addServer(QString(), restoredConfig,
+                                              serverConfigUtils::configTypeFromJson(restoredConfig));
+    configRestored = !serverId.isEmpty();
+    return configRestored ? ErrorCode::NoError : ErrorCode::InternalError;
+}
+
+ErrorCode SubscriptionController::getAccountInfoByEmail(const QString &email,
+                                                        AccountLookupResult &result)
+{
+    result = AccountLookupResult{};
+    const QString normalizedEmail = email.trimmed();
+    if (normalizedEmail.isEmpty()) {
+        return ErrorCode::InternalError;
+    }
+
+    const QJsonObject authData {
+        { apiDefs::key::apiKey, normalizedEmail },
+        { apiDefs::key::email, normalizedEmail }
+    };
+    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
+                                            QString(APP_VERSION),
+                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getInstallationUuid(true),
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            "",
+                                            authData };
+
+    QJsonObject apiPayload = gatewayRequestData.toJsonObject();
+    apiPayload[apiDefs::key::cliVersion] = QString(APP_VERSION);
+
+    QByteArray responseBody;
+    const ErrorCode errorCode = executeRequest(QString("%1v1/account_info"),
+                                               apiPayload, responseBody, false);
+    if (errorCode == ErrorCode::ApiNoPurchasedSubscriptionsError
+            || errorCode == ErrorCode::ApiSubscriptionNotActiveError) {
+        result.state = AccountSubscriptionState::NoSubscription;
+        return ErrorCode::NoError;
+    }
+    if (errorCode == ErrorCode::ApiSubscriptionExpiredError) {
+        result.state = AccountSubscriptionState::Expired;
+        return ErrorCode::NoError;
+    }
+    if (errorCode != ErrorCode::NoError) {
+        return errorCode;
+    }
+
+    result.accountInfo = QJsonDocument::fromJson(responseBody).object();
+    result.state = accountSubscriptionState(result.accountInfo);
+    if (result.state == AccountSubscriptionState::Expired) {
+        QString serviceType = result.accountInfo.value(apiDefs::key::serviceType).toString().trimmed();
+        if (serviceType.isEmpty()) {
+            serviceType = QStringLiteral("amnezia-premium");
+        }
+        for (int i = 0; i < m_serversRepository->serversCount(); ++i) {
+            const QString existingServerId = m_serversRepository->serverIdAt(i);
+            const auto existingApiV2 = m_serversRepository->apiV2Config(existingServerId);
+            if (!existingApiV2.has_value()
+                    || existingApiV2->serviceType() != serviceType
+                    || existingApiV2->authData.apiKey.trimmed().compare(normalizedEmail, Qt::CaseInsensitive) != 0) {
+                continue;
+            }
+
+            ApiV2ServerConfig updatedApiV2 = *existingApiV2;
+            updatedApiV2.apiConfig.subscription.endDate =
+                result.accountInfo.value(apiDefs::key::subscriptionEndDate).toString();
+            updatedApiV2.apiConfig.subscriptionExpiredByServer = true;
+            if (result.accountInfo.contains(apiDefs::key::availableCountries)) {
+                updatedApiV2.apiConfig.availableCountries =
+                    result.accountInfo.value(apiDefs::key::availableCountries).toArray();
+            }
+            if (result.accountInfo.contains(apiDefs::key::supportedProtocols)) {
+                updatedApiV2.apiConfig.supportedProtocols =
+                    result.accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+            }
+            m_serversRepository->editServer(existingServerId, updatedApiV2.toJson(),
+                                            serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
+            result.restoredServerId = existingServerId;
+            break;
+        }
+        return ErrorCode::NoError;
+    }
+    if (result.state != AccountSubscriptionState::Active) {
+        return ErrorCode::NoError;
+    }
+
+    return restoreAccountConfigByEmail(normalizedEmail, result.accountInfo,
+                                       result.restoredServerId, result.configRestored);
 }
 
 QFuture<QPair<ErrorCode, QString>> SubscriptionController::getRenewalLink(const QString &serverId)

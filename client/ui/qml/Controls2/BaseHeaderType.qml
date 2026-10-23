@@ -8,6 +8,9 @@ import "TextTypes"
 Item {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
+    property color headerTextColor: AmneziaStyle.color.paleGray
+    property color descriptionTextColor: AmneziaStyle.color.mutedGray
     property string headerText
     property int headerTextMaximumLineCount: 2
     property int headerTextElide: Qt.ElideRight
@@ -31,6 +34,8 @@ Item {
             Header1TextType {
                 id: header
                 Layout.fillWidth: true
+                font.family: root.fontFamily
+                color: root.headerTextColor
                 text: root.headerText
                 maximumLineCount: root.headerTextMaximumLineCount
                 elide: root.headerTextElide
@@ -42,7 +47,8 @@ Item {
             Layout.topMargin: 16
             Layout.fillWidth: true
             text: root.descriptionText
-            color: AmneziaStyle.color.mutedGray
+            font.family: root.fontFamily
+            color: root.descriptionTextColor
             visible: root.descriptionText !== ""
         }
 
@@ -53,6 +59,7 @@ Item {
             text: root.descriptionLinkText !== "" && root.descriptionLinkUrl !== ""
                   ? ("<a href=\"" + root.descriptionLinkUrl + "\" style=\"color: " + AmneziaStyle.color.goldenApricotString + ";\">" + root.descriptionLinkText + "</a>")
                   : ""
+            font.family: root.fontFamily
             textFormat: Text.RichText
             visible: root.descriptionLinkText !== ""
 

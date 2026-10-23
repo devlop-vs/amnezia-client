@@ -17,6 +17,45 @@ PageType {
 
     property bool isControlsDisabled: false
 
+    function openSubscriptionPage() {
+        PageController.showBusyIndicator(true)
+        var result = SubscriptionUiController.fillAvailableServices()
+        PageController.showBusyIndicator(false)
+        if (result) {
+            PageController.goToPage(PageEnum.PageSetupWizardApiServicesList)
+        }
+        tabBar.currentIndex = 2
+    }
+
+    function openSubscriptionInfo(serverId) {
+        var pagePath = "qrc:/ui/qml/Pages2/PageSettingsApiServerInfo.qml"
+        stackView.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
+        tabBar.currentIndex = 2
+    }
+
+    function openSubscriptionTab() {
+        var serverId = ServersUiController.defaultServerId
+
+        if (serverId.length === 0
+                || !ServersUiController.isServerFromApi(serverId)
+                || ServersUiController.isServerSubscriptionExpired(serverId)) {
+            root.openSubscriptionPage()
+            return
+        }
+
+        ServersUiController.setProcessedServerId(serverId)
+        PageController.showBusyIndicator(true)
+        var result = SubscriptionUiController.getAccountInfo(serverId, false)
+        PageController.showBusyIndicator(false)
+
+        if (!result || ApiAccountInfoModel.data("isSubscriptionExpired")) {
+            root.openSubscriptionPage()
+            return
+        }
+
+        root.openSubscriptionInfo(serverId)
+    }
+
     Connections {
         target: PageController
 
@@ -146,6 +185,15 @@ PageType {
         }
     }
 
+    Connections {
+        target: stackView.currentItem
+        ignoreUnknownSignals: true
+
+        function onSubscriptionRequested() {
+            root.openSubscriptionTab()
+        }
+    }
+
     TabBar {
         id: tabBar
         objectName: "redaViaTabBar"
@@ -158,8 +206,8 @@ PageType {
 
         topPadding: 8
         bottomPadding: 8 + PageController.safeAreaBottomMargin
-        leftPadding: 72
-        rightPadding: 72
+        leftPadding: 0
+        rightPadding: 0
 
         height: homeTabButton.implicitHeight + tabBar.topPadding + tabBar.bottomPadding
 
@@ -188,8 +236,10 @@ PageType {
             id: homeTabButton
             objectName: "redaViaHomeTabButton"
 
+            width: tabBar.availableWidth / 4
+            borderFocusedWidth: 0
             isSelected: tabBar.currentIndex === 0
-            image: "qrc:/images/controls/home.svg"
+            image: "qrc:/ui/qml/RedaVia/assets/home.svg"
             clickedFunc: function () {
                 stackView.goToRedaViaPage("qrc:/ui/qml/Pages2/PageRedaVia.qml", "PageRedaVia")
                 tabBar.currentIndex = 0
@@ -200,8 +250,10 @@ PageType {
             id: locationsTabButton
             objectName: "redaViaLocationsTabButton"
 
+            width: tabBar.availableWidth / 4
+            borderFocusedWidth: 0
             isSelected: tabBar.currentIndex === 1
-            image: "qrc:/images/controls/map-pin.svg"
+            image: "qrc:/ui/qml/RedaVia/assets/countries.svg"
             clickedFunc: function () {
                 stackView.goToRedaViaPage("qrc:/ui/qml/RedaVia/LocationsPage.qml", "LocationsPage")
                 tabBar.currentIndex = 1
@@ -212,16 +264,12 @@ PageType {
             id: subscriptionTabButton
             objectName: "redaViaSubscriptionTabButton"
 
+            width: tabBar.availableWidth / 4
+            borderFocusedWidth: 0
             isSelected: tabBar.currentIndex === 2
-            image: "qrc:/images/controls/infinity.svg"
+            image: "qrc:/ui/qml/RedaVia/assets/subscription.svg"
             clickedFunc: function () {
-                PageController.showBusyIndicator(true)
-                var result = SubscriptionUiController.fillAvailableServices()
-                PageController.showBusyIndicator(false)
-                if (result) {
-                    PageController.goToPage(PageEnum.PageSetupWizardApiServicesList)
-                }
-                tabBar.currentIndex = 2
+                root.openSubscriptionTab()
             }
         }
 
@@ -229,8 +277,10 @@ PageType {
             id: profileTabButton
             objectName: "redaViaProfileTabButton"
 
+            width: tabBar.availableWidth / 4
+            borderFocusedWidth: 0
             isSelected: tabBar.currentIndex === 3
-            image: "qrc:/images/controls/settings.svg"
+            image: "qrc:/ui/qml/RedaVia/assets/settings.svg"
             clickedFunc: function () {
                 stackView.goToRedaViaPage("qrc:/ui/qml/RedaVia/ProfilePage.qml", "ProfilePage")
                 tabBar.currentIndex = 3

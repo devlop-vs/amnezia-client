@@ -9,6 +9,11 @@ import "TextTypes"
 Switch {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
+    property color cardColor: AmneziaStyle.color.transparent
+    property color cardBorderColor: AmneziaStyle.color.transparent
+    property int cardBorderWidth: 0
+    property int cardRadius: 0
     property alias descriptionText: description.text
     property string descriptionTextColor: AmneziaStyle.color.mutedGray
     property string descriptionTextDisabledColor: AmneziaStyle.color.charcoalGray
@@ -63,6 +68,13 @@ Switch {
 
     hoverEnabled: enabled ? true : false
     focusPolicy: Qt.TabFocus
+
+    background: Rectangle {
+        color: root.cardColor
+        border.color: root.cardBorderColor
+        border.width: root.cardBorderWidth
+        radius: root.cardRadius
+    }
 
     indicator: Rectangle {
         id: switcher
@@ -127,6 +139,7 @@ Switch {
             rightPadding: indicator.width
 
             text: root.text
+            font.family: root.fontFamily
             color: root.enabled ? root.textColor : root.textDisabledColor
         }
 
@@ -137,6 +150,7 @@ Switch {
             rightPadding: indicator.width
 
             color: root.enabled ? root.descriptionTextColor : root.descriptionTextDisabledColor
+            font.family: root.fontFamily
 
             visible: text !== ""
         }

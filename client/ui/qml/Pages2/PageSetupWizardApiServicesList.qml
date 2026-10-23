@@ -12,9 +12,16 @@ import "./"
 import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
+import "../RedaVia" as RedaVia
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     BackButtonType {
         id: backButton
@@ -39,6 +46,8 @@ PageType {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.topMargin: 16
+        palette.base: RedaVia.Theme.background
+        palette.window: RedaVia.Theme.background
 
         header: ColumnLayout {
             width: listView.width
@@ -49,8 +58,9 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.bottomMargin: 24
 
-                headerText: qsTr("VPN by Amnezia")
+                headerText: qsTr("VPN by RedaVia")
                 descriptionText: qsTr("Choose a VPN service that suits your needs.")
+                fontFamily: RedaVia.Theme.fontFamily
             }
         }
 
@@ -86,6 +96,19 @@ PageType {
                 headerText: name
                 bodyText: cardDescription
                 footerText: price
+                fontFamily: RedaVia.Theme.fontFamily
+
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                headerTextColor: RedaVia.Theme.textPrimary
+                bodyTextColor: RedaVia.Theme.textSecondary
+                footerTextColor: RedaVia.Theme.textMuted
+                rightImageColor: RedaVia.Theme.textSecondary
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                recommendedBackgroundColor: RedaVia.Theme.primaryGreen
+                recommendedTextColor: RedaVia.Theme.background
 
                 showRecommendedBadge: showRecommended && isServiceAvailable
                 recommendedText: qsTr("Recommended")

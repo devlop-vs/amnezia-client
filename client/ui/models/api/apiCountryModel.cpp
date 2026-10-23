@@ -254,9 +254,9 @@ void ApiCountryModel::updateModel(const QJsonArray &countries, const QString &cu
             break;
         }
     }
-    emit currentIndexChanged(m_currentIndex);
-
     endResetModel();
+
+    emit currentIndexChanged(m_currentIndex);
 }
 
 void ApiCountryModel::updateIssuedConfigsInfo(const QJsonArray &issuedConfigs)

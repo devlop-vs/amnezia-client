@@ -12,6 +12,10 @@ RowLayout {
     property string titleText: ""
     property string bodyText: ""
     property bool link: false
+    property string fontFamily: "PT Root UI VF"
+    property color titleColor: AmneziaStyle.color.paleGray
+    property color bodyColor: AmneziaStyle.color.mutedGray
+    property color linkColor: AmneziaStyle.color.goldenApricot
 
     readonly property string bodyLineText: root.link && root.bodyText.length > 0 ? "@" + root.bodyText : root.bodyText
 
@@ -34,7 +38,8 @@ RowLayout {
         LabelTextType {
             Layout.fillWidth: true
             text: root.titleText
-            color: AmneziaStyle.color.paleGray
+            color: root.titleColor
+            font.family: root.fontFamily
             font.pixelSize: 16
             font.weight: Font.DemiBold
             wrapMode: Text.Wrap
@@ -48,7 +53,8 @@ RowLayout {
                 id: bodyLabel
                 width: parent.width
                 text: root.bodyLineText
-                color: root.link ? AmneziaStyle.color.goldenApricot : AmneziaStyle.color.mutedGray
+                color: root.link ? root.linkColor : root.bodyColor
+                font.family: root.fontFamily
                 font.pixelSize: 14
                 wrapMode: Text.Wrap
             }

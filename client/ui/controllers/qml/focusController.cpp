@@ -27,7 +27,11 @@ FocusController::FocusController(QQmlApplicationEngine *engine, QObject *parent)
     });
 
     QObject::connect(this, &FocusController::focusedItemChanged, this,
-                     [this]() { m_focusedItem->forceActiveFocus(Qt::TabFocusReason); });
+                     [this]() {
+                         if (m_focusedItem && m_focusedItem->window()) {
+                             m_focusedItem->forceActiveFocus(Qt::TabFocusReason);
+                         }
+                     });
 }
 
 void FocusController::nextKeyTabItem()
@@ -62,6 +66,11 @@ void FocusController::nextKeyRightItem()
 
 void FocusController::setFocusItem(QQuickItem *item)
 {
+    if (!item) {
+        logger.warning() << "Ignoring request to focus a null item";
+        return;
+    }
+
     if (m_focusedItem != item) {
         m_focusedItem = item;
     }
@@ -70,7 +79,9 @@ void FocusController::setFocusItem(QQuickItem *item)
 
 void FocusController::setFocusOnDefaultItem()
 {
-    setFocusItem(m_defaultFocusItem);
+    if (m_defaultFocusItem) {
+        setFocusItem(m_defaultFocusItem);
+    }
 }
 
 void FocusController::pushRootObject(QObject *object)
@@ -130,7 +141,7 @@ void FocusController::nextItem(Direction direction)
 {
     reload(direction);
 
-    if (m_lvfc && FocusControl::isListView(m_focusedItem)) {
+    if (m_lvfc && m_focusedItem && FocusControl::isListView(m_focusedItem)) {
         direction == Direction::Forward ? focusNextListViewItem() : focusPreviousListViewItem();
 
         return;
@@ -142,7 +153,7 @@ void FocusController::nextItem(Direction direction)
         return;
     }
 
-    auto focusedItemIndex = m_focusChain.indexOf(m_focusedItem);
+    auto focusedItemIndex = m_focusChain.indexOf(m_focusedItem.data());
 
     if (focusedItemIndex == -1) {
         focusedItemIndex = 0;

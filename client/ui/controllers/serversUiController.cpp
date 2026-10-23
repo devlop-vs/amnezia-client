@@ -209,7 +209,6 @@ void ServersUiController::updateModel()
         emit hasServersFromGatewayApiChanged();
     }
 
-    emit defaultServerIdChanged(defaultServerId);
 }
 
 QString ServersUiController::getDefaultServerId() const

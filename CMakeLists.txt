@@ -11,7 +11,7 @@ option(GPAY "Enable Google Play Billing flow for Android subscriptions" OFF)
 
 
 set(PROJECT AmneziaVPN)
-set(AMNEZIAVPN_VERSION 4.9.0.43)
+set(AMNEZIAVPN_VERSION 4.9.0.60)
 #---step 2 --           先把项目名和版本存在变量里，下面 project() 会用到。
 
 
@@ -61,7 +61,7 @@ string(TIMESTAMP CURRENT_DATE "%Y-%m-%d")
 set(RELEASE_DATE "${CURRENT_DATE}")
 
 set(APP_MAJOR_VERSION ${CMAKE_PROJECT_VERSION_MAJOR}.${CMAKE_PROJECT_VERSION_MINOR}.${CMAKE_PROJECT_VERSION_PATCH})
-set(APP_ANDROID_VERSION_CODE 2171)
+set(APP_ANDROID_VERSION_CODE 2188)
 
 #=== step 7         取当前日期，格式为 YYYY-MM-DD，用于构建时写入版本信息或 About 对话框。
 #.              APP_MAJOR_VERSION：从 4.9.0.34 中取 MAJOR.MINOR.PATCH（三段），生成 4.9.0 之类的版本号，用于显示。

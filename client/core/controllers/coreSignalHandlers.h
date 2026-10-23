@@ -21,6 +21,7 @@ private:
     void initImportControllerHandler();
     void initApiCountryModelUpdateHandler();
     void initSubscriptionRefreshHandler();
+    void initLoginSubscriptionCheckHandler();
     void initAdminConfigRevokedHandler();
     void initPassphraseRequestHandler();
     void initTranslationsUpdatedHandler();
@@ -43,6 +44,7 @@ private:
     void initUpdateFoundHandler();
 
     CoreController* m_coreController;
+    QString m_pendingConnectionServerId;
 };
 
 #endif // CORESIGNALHANDLERS_H

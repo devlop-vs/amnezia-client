@@ -161,6 +161,30 @@ Window  {
         }
     }
 
+    // Keep authentication lifecycle handling outside onboardingPageComponent.
+    // A successful first login changes hasRegisteredAccount and destroys the
+    // onboarding component before loginSuccess is emitted.
+    Connections {
+        target: AuthController
+
+        function onLoginStarted() {
+            PageController.showBusyIndicator(true)
+        }
+
+        function onLoginSuccess(email) {
+            PageController.showBusyIndicator(false)
+        }
+
+        function onLoginCanceled() {
+            PageController.showBusyIndicator(false)
+        }
+
+        function onLoginFailed(error) {
+            PageController.showBusyIndicator(false)
+            PageController.showErrorMessage(error)
+        }
+    }
+
     Loader {
         id: startupPageLoader
         objectName: "startupPageLoader"
@@ -176,27 +200,6 @@ Window  {
         Item {
             width: root.width
             height: root.height
-
-            Connections {
-                target: AuthController
-
-                function onLoginStarted() {
-                    PageController.showBusyIndicator(true)
-                }
-
-                function onLoginSuccess(email) {
-                    PageController.showBusyIndicator(false)
-                }
-
-                function onLoginCanceled() {
-                    PageController.showBusyIndicator(false)
-                }
-
-                function onLoginFailed(error) {
-                    PageController.showBusyIndicator(false)
-                    PageController.showErrorMessage(error)
-                }
-            }
 
             StackView {
                 id: onboardingStack

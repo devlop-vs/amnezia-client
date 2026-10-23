@@ -10,6 +10,7 @@ import "TextTypes"
 Button {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
     property string hoveredColor: AmneziaStyle.color.lightGray
     property string defaultColor: AmneziaStyle.color.paleGray
     property string disabledColor: AmneziaStyle.color.charcoalGray
@@ -21,6 +22,7 @@ Button {
     property string borderFocusedColor: AmneziaStyle.color.paleGray
     property int borderWidth: 0
     property int borderFocusedWidth: 1
+    property int buttonRadius: 16
 
     property string leftImageSource
     property string rightImageSource
@@ -72,7 +74,7 @@ Button {
 
         anchors.fill: parent
 
-        radius: 16
+        radius: root.buttonRadius
 
         Rectangle {
             id: background
@@ -80,7 +82,7 @@ Button {
             anchors.fill: focusBorder
             anchors.margins: root.activeFocus ? 2 : 0
 
-            radius: root.activeFocus ? 14 : 16
+            radius: root.activeFocus ? Math.max(0, root.buttonRadius - 2) : root.buttonRadius
             color: {
                 if (root.enabled) {
                     if (root.pressed) {
@@ -166,6 +168,7 @@ Button {
                 id: buttonText
 
                 color: root.textColor
+                font.family: root.fontFamily
                 text: root.text
                 visible: root.text === "" ? false : true
 

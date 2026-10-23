@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QQuickItem>
 #include <QSharedPointer>
 #include <QStack>
@@ -54,12 +55,12 @@ private:
     bool hasHeader() const;
     bool hasFooter() const;
 
-    QQuickItem *m_listView;
+    QPointer<QQuickItem> m_listView;
     QList<QObject *> m_focusChain;
     Section m_currentSection;
-    QQuickItem *m_header;
-    QQuickItem *m_footer;
-    QQuickItem *m_focusedItem; // Pointer to focused item on Delegate
+    QPointer<QQuickItem> m_header;
+    QPointer<QQuickItem> m_footer;
+    QPointer<QQuickItem> m_focusedItem; // Focused item on Delegate
     qsizetype m_focusedItemIndex;
     qsizetype m_delegateIndex;
     bool m_isReturnNeeded;

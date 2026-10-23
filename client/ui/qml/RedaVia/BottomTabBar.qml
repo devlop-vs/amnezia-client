@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import Qt5Compat.GraphicalEffects
 
 Item {
     id: root
@@ -23,51 +24,47 @@ Item {
     }
 
     RowLayout {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
+        anchors.fill: parent
         anchors.topMargin: 8
-        spacing: 50
+        spacing: 0
 
         Repeater {
             model: [
-                { icon: "⌂", label: "Home" },
-                { icon: "◉", label: "Locations" },
-                { icon: "▣", label: "Subscription" },
-                { icon: "◎", label: "Profile" }
+                "qrc:/ui/qml/RedaVia/assets/home.svg",
+                "qrc:/ui/qml/RedaVia/assets/countries.svg",
+                "qrc:/ui/qml/RedaVia/assets/subscription.svg",
+                "qrc:/ui/qml/RedaVia/assets/settings.svg"
             ]
 
-            ColumnLayout {
-                spacing: 4
-                Layout.preferredWidth: 58
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredWidth: root.width / 4
+                Layout.fillHeight: true
 
                 property bool isActive: root.currentIndex === index
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: modelData.icon
-                    font { family: Theme.fontFamily; pixelSize: 18 }
-                    color: isActive ? Theme.primaryGreen : Theme.textSecondary
-                    Behavior on color { ColorAnimation { duration: 200 } }
+                Image {
+                    id: tabIcon
+                    anchors.centerIn: parent
+                    width: 20
+                    height: 20
+                    source: modelData
+                    fillMode: Image.PreserveAspectFit
+                    sourceSize.width: width
+                    sourceSize.height: height
+
+                    layer.enabled: true
+                    layer.effect: ColorOverlay {
+                        color: isActive ? Theme.primaryGreen : Theme.textSecondary
+                    }
 
                     scale: tabMouse.pressed ? 0.85 : 1.0
                     Behavior on scale { NumberAnimation { duration: 100 } }
                 }
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: modelData.label
-                    font {
-                        family: Theme.fontFamily; pixelSize: 10
-                        weight: isActive ? Font.Medium : Font.Normal
-                    }
-                    color: isActive ? Theme.primaryGreen : Theme.textSecondary
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                }
-
                 MouseArea {
                     id: tabMouse
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    anchors.fill: parent
                     onClicked: {
                         root.currentIndex = index
                         root.tabClicked(index)
