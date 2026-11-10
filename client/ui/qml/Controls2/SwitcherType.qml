@@ -14,6 +14,7 @@ Switch {
     property color cardBorderColor: AmneziaStyle.color.transparent
     property int cardBorderWidth: 0
     property int cardRadius: 0
+    property int contentLeftPadding: 0
     property alias descriptionText: description.text
     property string descriptionTextColor: AmneziaStyle.color.mutedGray
     property string descriptionTextDisabledColor: AmneziaStyle.color.charcoalGray
@@ -133,6 +134,7 @@ Switch {
 
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
+        anchors.leftMargin: root.contentLeftPadding
 
         ListItemTitleType {
             Layout.fillWidth: true

@@ -16,6 +16,33 @@ PageType {
     id: root
 
     property bool isControlsDisabled: false
+    property bool locationsRefreshInProgress: false
+
+    function refreshLocationsIfEmpty() {
+        if (ApiCountryModel.count > 0 || root.locationsRefreshInProgress) {
+            return
+        }
+
+        var serverId = ServersUiController.defaultServerId
+        if (serverId.length > 0 && ServersUiController.isServerFromApi(serverId)) {
+            root.locationsRefreshInProgress = true
+            ServersUiController.setProcessedServerId(serverId)
+            SubscriptionUiController.getAccountInfo(serverId, false)
+            root.locationsRefreshInProgress = false
+            return
+        }
+
+        if (AuthController.isLoggedIn && AuthController.userEmail.length > 0) {
+            root.locationsRefreshInProgress = true
+            SubscriptionUiController.getAccountInfoByEmail(AuthController.userEmail)
+        }
+    }
+
+    function openLocationsTab() {
+        root.refreshLocationsIfEmpty()
+        stackView.goToRedaViaPage("qrc:/ui/qml/RedaVia/LocationsPage.qml", "LocationsPage")
+        tabBar.currentIndex = 1
+    }
 
     function openSubscriptionPage() {
         PageController.showBusyIndicator(true)
@@ -57,6 +84,8 @@ PageType {
     }
 
     Connections {
+        id: pageControllerConnection
+        objectName: "pageControllerConnection"
         target: PageController
 
         function onGoToPageHome() {
@@ -156,6 +185,9 @@ PageType {
 
         enabled: !root.isControlsDisabled
 
+        // Lets child pages reserve exactly the space occupied by the shared navigation bar.
+        readonly property int bottomNavigationHeight: tabBar.height
+
         function goToRedaViaPage(pagePath, objectName) {
             stackView.clear(StackView.Immediate)
             stackView.replace(pagePath, { "objectName" : objectName }, StackView.Immediate)
@@ -191,6 +223,47 @@ PageType {
 
         function onSubscriptionRequested() {
             root.openSubscriptionTab()
+        }
+
+        function onLocationsRequested() {
+            root.openLocationsTab()
+        }
+
+        function onServerSelected(countryCode, countryName, protocolName) {
+            stackView.goToRedaViaPage("qrc:/ui/qml/Pages2/PageRedaVia.qml", "PageRedaVia")
+            tabBar.currentIndex = 0
+        }
+
+        function onSettingsRequested() {
+            stackView.push(PageController.getPagePath(PageEnum.PageSettings),
+                           { "objectName": PageController.getPagePath(PageEnum.PageSettings) },
+                           StackView.PushTransition)
+        }
+
+        function onConnectionSettingsRequested() {
+            stackView.push(PageController.getPagePath(PageEnum.PageSettingsConnection),
+                           { "objectName": PageController.getPagePath(PageEnum.PageSettingsConnection) },
+                           StackView.PushTransition)
+        }
+
+        function onAppearanceRequested() {
+            stackView.push(PageController.getPagePath(PageEnum.PageSettingsApplication),
+                           { "objectName": PageController.getPagePath(PageEnum.PageSettingsApplication) },
+                           StackView.PushTransition)
+        }
+
+        function onAboutRequested() {
+            stackView.push(PageController.getPagePath(PageEnum.PageSettingsAbout),
+                           { "objectName": PageController.getPagePath(PageEnum.PageSettingsAbout) },
+                           StackView.PushTransition)
+        }
+    }
+
+    Connections {
+        target: SubscriptionUiController
+
+        function onAccountInfoByEmailFinished() {
+            root.locationsRefreshInProgress = false
         }
     }
 
@@ -255,8 +328,7 @@ PageType {
             isSelected: tabBar.currentIndex === 1
             image: "qrc:/ui/qml/RedaVia/assets/countries.svg"
             clickedFunc: function () {
-                stackView.goToRedaViaPage("qrc:/ui/qml/RedaVia/LocationsPage.qml", "LocationsPage")
-                tabBar.currentIndex = 1
+                root.openLocationsTab()
             }
         }
 

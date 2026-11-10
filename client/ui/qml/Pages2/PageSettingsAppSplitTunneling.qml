@@ -15,10 +15,17 @@ import "./"
 import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Components"
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     property bool pageEnabled
 
@@ -77,12 +84,17 @@ PageType {
 
         BackButtonType {
             id: backButton
+            backButtonImageColor: RedaVia.Theme.textPrimary
         }
 
         HeaderTypeWithSwitcher {
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
+
+            fontFamily: RedaVia.Theme.fontFamily
+            headerTextColor: RedaVia.Theme.textPrimary
+            descriptionTextColor: RedaVia.Theme.textSecondary
 
             headerText: qsTr("App split tunneling")
 
@@ -100,6 +112,22 @@ PageType {
 
         DropDownType {
             id: selector
+            fontFamily: RedaVia.Theme.fontFamily
+            headerTextColor: RedaVia.Theme.textPrimary
+            drawerBackgroundColor: RedaVia.Theme.background
+            drawerBorderColor: RedaVia.Theme.borderColor
+            backButtonImageColor: RedaVia.Theme.textPrimary
+            textColor: RedaVia.Theme.textPrimary
+            textDisabledColor: RedaVia.Theme.textSecondary
+            descriptionTextColor: RedaVia.Theme.textSecondary
+            rootButtonImageColor: RedaVia.Theme.textPrimary
+            rootButtonBackgroundColor: RedaVia.Theme.cardBackground
+            rootButtonBackgroundHoveredColor: RedaVia.Theme.cardBackgroundAlt
+            rootButtonBackgroundPressedColor: RedaVia.Theme.cardBackgroundAlt
+            rootButtonDefaultBorderColor: RedaVia.Theme.borderColor
+            rootButtonHoveredBorderColor: RedaVia.Theme.primaryGreen
+            rootButtonPressedBorderColor: RedaVia.Theme.primaryGreen
+            borderFocusedColor: RedaVia.Theme.primaryGreen
 
             Layout.fillWidth: true
             Layout.topMargin: 32
@@ -115,6 +143,11 @@ PageType {
 
             listView: ListViewWithRadioButtonType {
                 rootWidth: root.width
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                defaultColor: RedaVia.Theme.background
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                focusedBorderColor: RedaVia.Theme.primaryGreen
 
                 model: root.routeModesModel
 
@@ -188,13 +221,20 @@ PageType {
 
             LabelWithButtonType {
                 Layout.fillWidth: true
-
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: appPath
                 rightImageSource: "qrc:/images/controls/trash.svg"
-                rightImageColor: AmneziaStyle.color.paleGray
 
                 clickedFunction: function() {
                     var headerText = qsTr("Remove ") + appPath + "?"
@@ -211,7 +251,7 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
         }
     }
 
@@ -222,7 +262,7 @@ PageType {
         
         height: addAppButton.implicitHeight + 48 + PageController.safeAreaBottomMargin
         
-        color: AmneziaStyle.color.midnightBlack
+        color: RedaVia.Theme.background
         
         RowLayout {
             id: addAppButton
@@ -238,6 +278,16 @@ PageType {
             anchors.bottomMargin: 24 + PageController.safeAreaBottomMargin
 
             TextFieldWithHeaderType {
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textSecondary
+                textFieldTextColor: RedaVia.Theme.textPrimary
+                textFieldPlaceholderTextColor: RedaVia.Theme.textPlaceholder
+                borderColor: RedaVia.Theme.borderColor
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                backgroundColor: RedaVia.Theme.cardBackground
+                backgroundDisabledColor: RedaVia.Theme.cardBackground
+                bgBorderHoveredColor: RedaVia.Theme.cardBackgroundAlt
+                backgroundRadius: RedaVia.Theme.inputRadius
                 id: searchField
 
                 Layout.fillWidth: true
@@ -271,5 +321,6 @@ PageType {
         id: installedAppDrawer
 
         anchors.fill: parent
+        useRedaViaTheme: true
     }
 }

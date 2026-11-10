@@ -16,9 +16,16 @@ import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
 import "../Components"
+import "../RedaVia" as RedaVia
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
     
     property bool pageEnabled: true
 
@@ -33,6 +40,7 @@ PageType {
 
         BackButtonType {
             id: backButton
+            backButtonImageColor: RedaVia.Theme.textPrimary
         }
 
         BaseHeaderType {
@@ -43,6 +51,9 @@ PageType {
 
             headerText: qsTr("DNS Exceptions")
             descriptionText: qsTr("DNS servers listed here will remain accessible when KillSwitch is active")
+            fontFamily: RedaVia.Theme.fontFamily
+            headerTextColor: RedaVia.Theme.textPrimary
+            descriptionTextColor: RedaVia.Theme.textSecondary
         }
     }
 
@@ -99,7 +110,13 @@ PageType {
 
                 text: ip
                 rightImageSource: "qrc:/images/controls/trash.svg"
-                rightImageColor: AmneziaStyle.color.paleGray
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                rightImageColor: RedaVia.Theme.textPrimary
 
                 clickedFunction: function() {
                     var headerText = qsTr("Delete ") + ip + "?"
@@ -122,7 +139,13 @@ PageType {
                 }
             }
 
-            DividerType {}
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                height: 1
+                color: RedaVia.Theme.borderColor
+            }
         }
     }
 
@@ -134,6 +157,7 @@ PageType {
         anchors.right: parent.right
         
         enabled: root.pageEnabled
+        useRedaViaStyle: true
         placeholderText: qsTr("IPv4 address")
 
         onAddClicked: function(text) {
@@ -152,6 +176,8 @@ PageType {
 
         anchors.fill: parent
         expandedHeight: parent.height * 0.4375
+        defaultColor: RedaVia.Theme.cardBackground
+        borderColor: RedaVia.Theme.borderColor
 
         expandedStateContent: ColumnLayout {
             id: moreActionsDrawerContent
@@ -165,6 +191,9 @@ PageType {
                 Layout.margins: 16
 
                 headerText: qsTr("Import / Export addresses")
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
             }
 
             LabelWithButtonType {
@@ -173,6 +202,13 @@ PageType {
 
                 text: qsTr("Import")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                rightImageColor: RedaVia.Theme.textPrimary
 
                 clickedFunction: function() {
                     importSitesDrawer.openTriggered()
@@ -185,6 +221,12 @@ PageType {
                 id: exportSitesButton
                 Layout.fillWidth: true
                 text: qsTr("Save address list")
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
 
                 clickedFunction: function() {
                     var fileName = ""
@@ -206,7 +248,13 @@ PageType {
                 }
             }
 
-            DividerType {}
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                height: 1
+                color: RedaVia.Theme.borderColor
+            }
         }
     }
 
@@ -215,6 +263,8 @@ PageType {
 
         anchors.fill: parent
         expandedHeight: parent.height * 0.4375
+        defaultColor: RedaVia.Theme.cardBackground
+        borderColor: RedaVia.Theme.borderColor
 
         expandedStateContent: Item {
             implicitHeight: importSitesDrawer.expandedHeight
@@ -226,6 +276,7 @@ PageType {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.topMargin: 16
+                backButtonImageColor: RedaVia.Theme.textPrimary
 
                 backButtonFunction: function() {
                     importSitesDrawer.closeTriggered()
@@ -252,6 +303,9 @@ PageType {
                         Layout.margins: 16
 
                         headerText: qsTr("Import address list")
+                        fontFamily: RedaVia.Theme.fontFamily
+                        headerTextColor: RedaVia.Theme.textPrimary
+                        descriptionTextColor: RedaVia.Theme.textSecondary
                     }
 
                     LabelWithButtonType {
@@ -259,6 +313,12 @@ PageType {
                         Layout.fillWidth: true
 
                         text: qsTr("Replace address list")
+                        fontFamily: RedaVia.Theme.fontFamily
+                        cardColor: RedaVia.Theme.cardBackground
+                        cardBorderColor: RedaVia.Theme.borderColor
+                        cardBorderWidth: 1
+                        cardRadius: RedaVia.Theme.buttonRadius
+                        textColor: RedaVia.Theme.textPrimary
 
                         clickedFunction: function() {
                             var fileName = SystemController.getFileName(qsTr("Open address file"),
@@ -269,12 +329,24 @@ PageType {
                         }
                     }
 
-                    DividerType {}
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 16
+                        Layout.rightMargin: 16
+                        height: 1
+                        color: RedaVia.Theme.borderColor
+                    }
 
                     LabelWithButtonType {
                         id: importSitesButton3
                         Layout.fillWidth: true
                         text: qsTr("Add imported addresses to existing ones")
+                        fontFamily: RedaVia.Theme.fontFamily
+                        cardColor: RedaVia.Theme.cardBackground
+                        cardBorderColor: RedaVia.Theme.borderColor
+                        cardBorderWidth: 1
+                        cardRadius: RedaVia.Theme.buttonRadius
+                        textColor: RedaVia.Theme.textPrimary
 
                         clickedFunction: function() {
                             var fileName = SystemController.getFileName(qsTr("Open address file"),
@@ -293,7 +365,13 @@ PageType {
                         moreActionsDrawer.closeTriggered()
                     }
 
-                    DividerType {}
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 16
+                        Layout.rightMargin: 16
+                        height: 1
+                        color: RedaVia.Theme.borderColor
+                    }
                 }
             }
         }

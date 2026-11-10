@@ -65,13 +65,25 @@ Vpn::ConnectionState VpnProtocol::connectionState() const
 
 void VpnProtocol::setBytesChanged(quint64 receivedBytes, quint64 sentBytes)
 {
-    quint64 rxDiff = receivedBytes - m_receivedBytes;
-    quint64 txDiff = sentBytes - m_sentBytes;
-
-    emit bytesChanged(rxDiff, txDiff);
+    quint64 rxDiff = 0;
+    quint64 txDiff = 0;
+    qint64 elapsedMs = 0;
+    if (m_trafficUpdateTimer.isValid()) {
+        elapsedMs = m_trafficUpdateTimer.restart();
+        rxDiff = receivedBytes >= m_receivedBytes ? receivedBytes - m_receivedBytes : 0;
+        txDiff = sentBytes >= m_sentBytes ? sentBytes - m_sentBytes : 0;
+    } else {
+        m_trafficUpdateTimer.start();
+    }
 
     m_receivedBytes = receivedBytes;
     m_sentBytes = sentBytes;
+
+    const quint64 rxSpeed = elapsedMs > 0
+        ? static_cast<quint64>(static_cast<long double>(rxDiff) * 1000.0L / elapsedMs) : 0;
+    const quint64 txSpeed = elapsedMs > 0
+        ? static_cast<quint64>(static_cast<long double>(txDiff) * 1000.0L / elapsedMs) : 0;
+    emit trafficUpdated(rxDiff, txDiff, rxSpeed, txSpeed);
 }
 
 void VpnProtocol::setConnectionState(Vpn::ConnectionState state)

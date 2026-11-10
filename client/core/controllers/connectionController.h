@@ -65,7 +65,8 @@ public:
 
 signals:
     void connectionStateChanged(Vpn::ConnectionState state);
-    void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void trafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                        quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
     void openConnectionRequested(const QString &serverId, DockerContainer container, const QJsonObject &vpnConfiguration);
     void closeConnectionRequested();
     void setConnectionStateRequested(Vpn::ConnectionState state);

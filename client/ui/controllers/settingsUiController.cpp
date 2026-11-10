@@ -278,6 +278,17 @@ void SettingsUiController::toggleStrictKillSwitch(bool enable)
     emit strictKillSwitchEnabledChanged(enable);
 }
 
+bool SettingsUiController::isGlobalProxyEnabled()
+{
+    return m_settingsController->isGlobalProxyEnabled();
+}
+
+void SettingsUiController::toggleGlobalProxy(bool enable)
+{
+    m_settingsController->toggleGlobalProxy(enable);
+    emit globalProxyEnabledChanged(enable);
+}
+
 bool SettingsUiController::isNotificationPermissionGranted()
 {
 #ifdef Q_OS_ANDROID

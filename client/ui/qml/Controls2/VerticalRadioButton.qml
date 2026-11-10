@@ -28,6 +28,8 @@ RadioButton {
 
     property string borderFocusedColor: AmneziaStyle.color.paleGray
     property int borderFocusedWidth: 1
+    property int cardRadius: 16
+    property string fontFamily: "PT Root UI VF"
 
     property string imageSource
     property bool showImage
@@ -76,7 +78,7 @@ RadioButton {
 
         implicitWidth: 56
         implicitHeight: 56
-        radius: 16
+        radius: root.cardRadius
 
         color: {
             if (root.enabled) {
@@ -168,6 +170,7 @@ RadioButton {
                 }
 
                 Layout.fillWidth: true
+                font.family: root.fontFamily
 
                 Behavior on color {
                     PropertyAnimation { duration: 200 }
@@ -183,6 +186,7 @@ RadioButton {
                 visible: root.descriptionText !== ""
 
                 Layout.fillWidth: true
+                font.family: root.fontFamily
             }
         }
     }

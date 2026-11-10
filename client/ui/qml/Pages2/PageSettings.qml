@@ -10,9 +10,16 @@ import "./"
 import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
+import "../RedaVia" as RedaVia
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     function openPageCompatible(pageEnum, slide) {
         var pagePath = PageController.getPagePath(pageEnum)
@@ -56,6 +63,9 @@ PageType {
                 Layout.rightMargin: 16
                 Layout.leftMargin: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
                 headerText: qsTr("Settings")
             }
         }
@@ -69,6 +79,17 @@ PageType {
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 visible: isVisible
 
@@ -80,6 +101,7 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: isVisible
             }
         }
@@ -92,6 +114,16 @@ PageType {
 
                 visible: GC.isDesktop()
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Close application")
                 leftImageSource: "qrc:/images/controls/x-circle.svg"

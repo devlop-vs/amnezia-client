@@ -30,7 +30,9 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+public slots:
     void updateModel(const QJsonArray &arr);
+    void refreshTranslations();
     void clear();
     void updatePriceLabel(const QString &storeProductId, const QString &storeProductType,
                           const QString &googlePlayBasePlanId, const QString &priceLabel);

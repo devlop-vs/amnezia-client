@@ -5,10 +5,11 @@ import Qt5Compat.GraphicalEffects
 Item {
     id: root
     width: parent.width
-    height: parent.height - Theme.tabBarY
-    y: Theme.tabBarY
+    height: Theme.screenHeight - Theme.tabBarY + PageController.safeAreaBottomMargin
+    anchors.bottom: parent.bottom
 
     property int currentIndex: 0
+    readonly property int contentHeight: Theme.screenHeight - Theme.tabBarY
     signal tabClicked(int index)
 
     Rectangle {
@@ -26,6 +27,7 @@ Item {
     RowLayout {
         anchors.fill: parent
         anchors.topMargin: 8
+        anchors.bottomMargin: PageController.safeAreaBottomMargin
         spacing: 0
 
         Repeater {

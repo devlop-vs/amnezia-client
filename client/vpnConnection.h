@@ -1,6 +1,7 @@
 #ifndef VPNCONNECTION_H
 #define VPNCONNECTION_H
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QMetaObject>
 #include <QString>
@@ -59,14 +60,22 @@ public slots:
     void setConnectionState(Vpn::ConnectionState state);
 
 signals:
-    void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void trafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                        quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
     void connectionStateChanged(Vpn::ConnectionState state);
     void vpnProtocolError(amnezia::ErrorCode error);
 
     void serviceIsNotReady();
 
 protected slots:
-    void onBytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void onTrafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                          quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
+#ifdef Q_OS_ANDROID
+    void onAndroidStatisticsUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                                    quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond,
+                                    quint64 sessionReceivedBytes, quint64 sessionSentBytes,
+                                    qint64 connectedSinceEpochMs);
+#endif
     void onConnectionStateChanged(Vpn::ConnectionState state);
 
 protected:
@@ -82,9 +91,13 @@ private:
 
     // Only for iOS for now, check counters
     QTimer m_checkTimer;
+    QElapsedTimer m_iosTrafficUpdateTimer;
 
 #ifdef Q_OS_ANDROID
-   AndroidVpnProtocol* createDefaultAndroidVpnProtocol();
+    qint64 m_androidConnectedSinceEpochMs = 0;
+    quint64 m_androidAccountedSessionRxBytes = 0;
+    quint64 m_androidAccountedSessionTxBytes = 0;
+    AndroidVpnProtocol* createDefaultAndroidVpnProtocol();
 #endif
 
     Vpn::ConnectionState m_connectionState = Vpn::ConnectionState::Disconnected;

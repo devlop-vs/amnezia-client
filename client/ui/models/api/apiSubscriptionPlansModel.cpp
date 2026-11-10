@@ -5,6 +5,8 @@
 #include <QModelIndex>
 #include <utility>
 
+#include "core/utils/api/apiTextUtils.h"
+
 namespace
 {
 namespace configKey
@@ -43,11 +45,11 @@ QVariant ApiSubscriptionPlansModel::data(const QModelIndex &index, int role) con
     const SubscriptionPlanItem &plan = m_subscriptionPlans.at(index.row());
     switch (role) {
     case BillingPeriodRole:
-        return plan.billingPeriod;
+        return apiTextUtils::translate(plan.billingPeriod);
     case PriceLabelRole:
         return plan.priceLabel;
     case SubtitleRole:
-        return plan.subtitle;
+        return apiTextUtils::translate(plan.subtitle);
     case RecommendedRole:
         return plan.recommended;
     case CheckoutUrlRole:
@@ -107,6 +109,14 @@ void ApiSubscriptionPlansModel::updateModel(const QJsonArray &arr)
         m_subscriptionPlans.append(std::move(subscriptionPlan));
     }
     endResetModel();
+}
+
+void ApiSubscriptionPlansModel::refreshTranslations()
+{
+    if (!m_subscriptionPlans.isEmpty()) {
+        emit dataChanged(index(0, 0), index(m_subscriptionPlans.size() - 1, 0),
+                         { BillingPeriodRole, SubtitleRole });
+    }
 }
 
 void ApiSubscriptionPlansModel::clear()

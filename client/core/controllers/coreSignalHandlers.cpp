@@ -244,6 +244,14 @@ void CoreSignalHandlers::initTranslationsUpdatedHandler()
     connect(m_coreController->m_languageUiController, &LanguageUiController::updateTranslations, m_coreController, &CoreController::updateTranslator);
     connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_languageUiController, &LanguageUiController::translationsUpdated);
     connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_connectionUiController, &ConnectionUiController::onTranslationsUpdated);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_subscriptionUiController,
+            &SubscriptionUiController::refreshTextLocalizations);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_subscriptionUiController,
+            &SubscriptionUiController::refreshCityLocalizations);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_apiServicesModel, &ApiServicesModel::refreshTranslations);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_apiSubscriptionPlansModel, &ApiSubscriptionPlansModel::refreshTranslations);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_apiBenefitsModel, &ApiBenefitsModel::refreshTranslations);
+    connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_apiAccountInfoModel, &ApiAccountInfoModel::refreshTranslations);
 }
 
 void CoreSignalHandlers::initLanguageHandler()

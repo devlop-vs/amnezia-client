@@ -41,39 +41,25 @@ Rectangle {
                     width: 177; height: 177; radius: 89
                     color: Theme.cardBackgroundAlt
 
-                    Text {
+                    Image {
                         anchors.centerIn: parent
-                        text: "◈"
-                        font { family: Theme.fontFamily; pixelSize: 88 }
-                        color: Theme.primaryGreen
+                        width: 96
+                        height: 96
+                        source: "qrc:/ui/qml/RedaVia/assets/logo-solid.svg"
+                        fillMode: Image.PreserveAspectFit
                     }
                 }
             }
         }
 
-        Item { Layout.fillHeight: true }
-
-        Text {
-            Layout.fillWidth: true
-            Layout.leftMargin: 30
-            Layout.rightMargin: 30
-            text: "Private by default"
-            font { family: Theme.fontFamily; pixelSize: 30; bold: true }
-            color: Theme.textPrimary
-            horizontalAlignment: Text.AlignHCenter
-
-            opacity: 0; y: 20
-            Component.onCompleted: { opacity = 1; y = 0 }
-            Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutQuad } }
-            Behavior on y { NumberAnimation { duration: 600; easing.type: Easing.OutQuad } }
-        }
+        Item { Layout.preferredHeight: 28 }
 
         Text {
             Layout.fillWidth: true
             Layout.leftMargin: 45
             Layout.rightMargin: 45
             Layout.topMargin: 16
-            text: "Secure your connection with one tap and browse without limits."
+            text: qsTr("Secure your connection with one tap and browse without limits.")
             font { family: Theme.fontFamily; pixelSize: 15 }
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
@@ -90,7 +76,7 @@ Rectangle {
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.bottomMargin: 120
-            text: "Get started"
+            text: qsTr("Get started")
             onClicked: root.getStartedClicked()
         }
     }

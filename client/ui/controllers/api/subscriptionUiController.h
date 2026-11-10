@@ -3,6 +3,10 @@
 
 #include <QObject>
 #include <QHash>
+#include <QQueue>
+#include <QSet>
+
+class QAbstractSocket;
 
 #include "core/controllers/serversController.h"
 #include "core/controllers/settingsController.h"
@@ -55,7 +59,7 @@ public slots:
     bool importTrialFromGateway(const QString &email);
     bool updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, const QString &newCountryName,
                                   bool reloadServiceConfig = false, const QString &serviceProtocolOverride = QString(),
-                                  const QString &newCityName = QString());
+                                  const QString &newCityCode = QString(), const QString &newCityName = QString());
     bool resetServiceClientIdentity(const QString &serverId);
     bool deactivateDevice(const QString &serverId);
     bool deactivateExternalDevice(const QString &serverId, const QString &uuid, const QString &serverCountryCode);
@@ -81,6 +85,10 @@ public slots:
     void updateApiCountryModel();
     void refreshApiCountryModelFromServer(const QString &serverId);
     void updateApiDevicesModel();
+    void refreshTextLocalizations();
+    void refreshCityLocalizations();
+    void refreshNodeQuality();
+    void stopNodeQualityMonitoring();
 
 signals:
     void configValidated(const QString &serverId, bool isValid);
@@ -96,6 +104,7 @@ signals:
     void updateServerFromApiFinished();
     void subscriptionRefreshNeeded();
     void loginAccountSubscriptionStateChanged();
+    void accountInfoByEmailFinished();
 
     void apiConfigRemoved(const QString &message);
     void apiServerRemoved(const QString &message);
@@ -134,10 +143,37 @@ private:
         qlonglong amountMicros = 0;
     };
 
+    struct NodeProbeJob {
+        SubscriptionController::NodeHealthInfo health;
+        int attempt = 0;
+        quint64 generation = 0;
+        QList<int> successfulLatencies;
+    };
+
+    struct NodeQualityHistory {
+        double emaScore = -1.0;
+        int signalBars = 0;
+        int consecutiveFailedBatches = 0;
+    };
+
+    QString nodeQualityKey(const SubscriptionController::NodeHealthInfo &health) const;
+    int signalBarsWithHysteresis(double score, int currentBars) const;
+    void startPendingNodeProbes();
+    void probeNode(const NodeProbeJob &job);
+    void probeTcpNode(const NodeProbeJob &job);
+    void probeUdpNode(const NodeProbeJob &job);
+    void completeNodeProbe(NodeProbeJob job, int latencyMs);
+    void publishNodeQuality(const NodeProbeJob &job);
+
     QList<QString> m_qrCodes;
     QString m_vpnKey;
     QHash<QString, GooglePlayMonthlyQuote> m_googlePlayMonthlyPriceLabels;
     QString m_loginAccountSubscriptionState = QStringLiteral("unknown");
+    QQueue<NodeProbeJob> m_nodeProbeQueue;
+    QSet<QAbstractSocket *> m_activeNodeProbeSockets;
+    QHash<QString, NodeQualityHistory> m_nodeQualityHistory;
+    int m_activeNodeProbes = 0;
+    quint64 m_nodeProbeGeneration = 0;
 
     ServersController* m_serversController;
     ApiServicesModel* m_apiServicesModel;

@@ -22,6 +22,11 @@ Item {
 
     property string headerText
     property string headerBackButtonImage
+    property string fontFamily: "PT Root UI VF"
+    property color headerTextColor: AmneziaStyle.color.paleGray
+    property color drawerBackgroundColor: AmneziaStyle.color.onyxBlack
+    property color drawerBorderColor: AmneziaStyle.color.slateGray
+    property color backButtonImageColor: AmneziaStyle.color.paleGray
 
     property var rootButtonClickedFunction
     property string rootButtonImage: "qrc:/images/controls/chevron-down.svg"
@@ -172,6 +177,7 @@ Item {
 
                 color: root.enabled ? root.descriptionTextColor : root.descriptionTextDisabledColor
                 text: root.descriptionText
+                font.family: root.fontFamily
             }
 
             ButtonTextType {
@@ -185,6 +191,7 @@ Item {
                 text: root.text
                 maximumLineCount: root.textMaximumLineCount
                 elide: root.textElide
+                font.family: root.fontFamily
             }
         }
 
@@ -220,6 +227,8 @@ Item {
         parent: drawerParent
 
         anchors.fill: parent
+        defaultColor: root.drawerBackgroundColor
+        borderColor: root.drawerBorderColor
         property real measuredContentHeight: 0
         expandedHeight: (root.fitContent && measuredContentHeight > 0)
             ? Math.min(measuredContentHeight, drawerParent.height * root.drawerHeight)
@@ -243,6 +252,7 @@ Item {
                 BackButtonType {
                     id: backButton
                     backButtonImage: root.headerBackButtonImage
+                    backButtonImageColor: root.backButtonImageColor
                     backButtonFunction: function() { menu.closeTriggered() }
                 }
 
@@ -253,6 +263,8 @@ Item {
                     Layout.bottomMargin: 16
                     Layout.fillWidth: true
 
+                    fontFamily: root.fontFamily
+                    headerTextColor: root.headerTextColor
                     headerText: root.headerText
                 }
 

@@ -25,7 +25,9 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+public slots:
     void updateModel(const QJsonArray &benefits);
+    void refreshTranslations();
     void clear();
 
 private:

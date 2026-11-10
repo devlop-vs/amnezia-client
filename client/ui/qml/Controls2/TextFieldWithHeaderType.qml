@@ -25,6 +25,8 @@ Item {
     property alias textField: textField
     property string textFieldTextColor: AmneziaStyle.color.paleGray
     property string textFieldTextDisabledColor: AmneziaStyle.color.mutedGray
+    property string textFieldPlaceholderTextColor: AmneziaStyle.color.charcoalGray
+    property string fontFamily: "PT Root UI VF"
 
     property bool textFieldEditable: true
 
@@ -34,6 +36,7 @@ Item {
     property string backgroundColor: AmneziaStyle.color.onyxBlack
     property string backgroundDisabledColor: AmneziaStyle.color.transparent
     property string bgBorderHoveredColor: AmneziaStyle.color.charcoalGray
+    property int backgroundRadius: 16
 
     implicitWidth: content.implicitWidth
     implicitHeight: content.implicitHeight
@@ -63,7 +66,7 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: input.implicitHeight
             color: root.enabled ? root.backgroundColor : root.backgroundDisabledColor
-            radius: 16
+            radius: root.backgroundRadius
             border.color: getBackgroundBorderColor(root.borderColor)
             border.width: 1
 
@@ -112,14 +115,14 @@ Item {
 
                         inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
 
-                        placeholderTextColor: AmneziaStyle.color.charcoalGray
+                        placeholderTextColor: root.textFieldPlaceholderTextColor
 
                         selectionColor:  AmneziaStyle.color.richBrown
                         selectedTextColor: AmneziaStyle.color.paleGray
 
                         font.pixelSize: 16
                         font.weight: 400
-                        font.family: "PT Root UI VF"
+                        font.family: root.fontFamily
 
                         height: 24
                         Layout.fillWidth: true

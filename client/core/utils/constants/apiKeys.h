@@ -27,6 +27,18 @@ namespace apiDefs
         constexpr QLatin1String serverCountryCode("server_country_code");
         constexpr QLatin1String serverCountryName("server_country_name");
         constexpr QLatin1String serverCityName("server_city_name");
+        constexpr QLatin1String serverCityCode("server_city_code");
+        constexpr QLatin1String countryCode("country_code");
+        constexpr QLatin1String cityCode("city_code");
+        constexpr QLatin1String nodeId("node_id");
+        constexpr QLatin1String endpointUid("endpoint_uid");
+        constexpr QLatin1String serverStatus("server_status");
+        constexpr QLatin1String serverLoadScore("server_load_score");
+        constexpr QLatin1String capacityStatus("capacity_status");
+        constexpr QLatin1String updatedAt("updated_at");
+        constexpr QLatin1String probeHost("probe_host");
+        constexpr QLatin1String probePort("probe_port");
+        constexpr QLatin1String probeType("probe_type");
         constexpr QLatin1String appVersion("app_version");
         constexpr QLatin1String authData("auth_data");
 

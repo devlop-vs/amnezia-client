@@ -17,6 +17,11 @@ ListViewType {
     property int textElide: Qt.ElideRight
 
     property string imageSource: "qrc:/images/controls/check.svg"
+    property string fontFamily: "PT Root UI VF"
+    property color textColor: AmneziaStyle.color.paleGray
+    property color defaultColor: AmneziaStyle.color.onyxBlack
+    property color hoveredColor: AmneziaStyle.color.slateGray
+    property color focusedBorderColor: AmneziaStyle.color.paleGray
 
     property var clickedFunction
 
@@ -81,8 +86,8 @@ ListViewType {
             indicator: Rectangle {
                 width: parent.width - 1
                 height: parent.height
-                color: radioButton.hovered ? AmneziaStyle.color.slateGray : AmneziaStyle.color.onyxBlack
-                border.color: radioButton.focus ? AmneziaStyle.color.paleGray : AmneziaStyle.color.transparent
+                color: radioButton.hovered ? root.hoveredColor : root.defaultColor
+                border.color: radioButton.focus ? root.focusedBorderColor : AmneziaStyle.color.transparent
                 border.width: radioButton.focus ? 1 : 0
 
                 Behavior on color {
@@ -114,6 +119,8 @@ ListViewType {
                     Layout.bottomMargin: 20
 
                     text: name
+                    color: root.textColor
+                    font.family: root.fontFamily
                     maximumLineCount: root.textMaximumLineCount
                     elide: root.textElide
 

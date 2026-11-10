@@ -1,10 +1,13 @@
 #ifndef CONNECTIONUICONTROLLER_H
 #define CONNECTIONUICONTROLLER_H
 
+#include <QDate>
+#include <QDateTime>
 #include <QObject>
 #include <QTimer>
 
 #include "core/controllers/connectionController.h"
+#include "core/repositories/secureAppSettingsRepository.h"
 #include "core/utils/errorCodes.h"
 #include "core/utils/routeModes.h"
 #include "core/utils/commonStructs.h"
@@ -22,9 +25,15 @@ public:
     Q_PROPERTY(QString downloadSpeedText READ downloadSpeedText NOTIFY speedChanged)
     Q_PROPERTY(QString uploadSpeedText READ uploadSpeedText NOTIFY speedChanged)
     Q_PROPERTY(QString connectionDurationText READ connectionDurationText NOTIFY connectionDurationChanged)
+    Q_PROPERTY(QString connectionServerId READ connectionServerId NOTIFY connectionStateChanged)
+    Q_PROPERTY(QString todayProtectedDurationText READ todayProtectedDurationText NOTIFY usageStatsChanged)
+    Q_PROPERTY(QString todayProtectedVolumeText READ todayProtectedVolumeText NOTIFY usageStatsChanged)
+    Q_PROPERTY(QString monthProtectedDurationText READ monthProtectedDurationText NOTIFY usageStatsChanged)
+    Q_PROPERTY(QString monthProtectedVolumeText READ monthProtectedVolumeText NOTIFY usageStatsChanged)
 
     explicit ConnectionUiController(ConnectionController* connectionController,
                                     ServersController* serversController,
+                                    SecureAppSettingsRepository* appSettingsRepository,
                                     QObject *parent = nullptr);
 
     ~ConnectionUiController() = default;
@@ -35,6 +44,11 @@ public:
     QString downloadSpeedText() const;
     QString uploadSpeedText() const;
     QString connectionDurationText() const;
+    QString connectionServerId() const;
+    QString todayProtectedDurationText() const;
+    QString todayProtectedVolumeText() const;
+    QString monthProtectedDurationText() const;
+    QString monthProtectedVolumeText() const;
 
 public slots:
     void toggleConnection();
@@ -48,7 +62,8 @@ public slots:
 
     ErrorCode getLastConnectionError();
     void onConnectionStateChanged(Vpn::ConnectionState state);
-    void onBytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void onTrafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                          quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
     void updateConnectionDuration();
 
     void onTranslationsUpdated();
@@ -57,6 +72,7 @@ signals:
     void connectionStateChanged();
     void speedChanged();
     void connectionDurationChanged();
+    void usageStatsChanged();
 
     void connectionErrorOccurred(ErrorCode errorCode);
 
@@ -74,9 +90,17 @@ private:
     qint64 currentConnectionDurationMs() const;
     void resumeConnectionDuration();
     void pauseConnectionDuration();
+    void loadUsageStats(const QDateTime &now);
+    void rollUsagePeriods(const QDateTime &now);
+    void addProtectedDuration(qint64 fromEpochMs, qint64 toEpochMs);
+    void persistUsageStats(bool force = false);
+    QString formatProtectedDuration(qint64 durationMs) const;
+    QString formatProtectedVolume(quint64 bytes) const;
+    QString monthKey(const QDate &date) const;
 
     ConnectionController* m_connectionController;
     ServersController* m_serversController;
+    SecureAppSettingsRepository* m_appSettingsRepository;
 
     bool m_isConnected = false;
     bool m_isConnectionInProgress = false;
@@ -88,6 +112,13 @@ private:
     qint64 m_accumulatedConnectionDurationMs = 0;
     qint64 m_connectionDurationStartedAtMs = 0;
     bool m_isConnectionDurationActive = false;
+    QDate m_usageDate;
+    QString m_usageMonth;
+    VpnUsagePeriod m_dailyUsage;
+    VpnUsagePeriod m_monthlyUsage;
+    qint64 m_lastUsageUpdateEpochMs = 0;
+    qint64 m_lastUsagePersistenceEpochMs = 0;
+    bool m_usageStatsDirty = false;
     QString m_connectionServerId;
     bool m_notifyPeerDisconnectOnDisconnected = false;
 

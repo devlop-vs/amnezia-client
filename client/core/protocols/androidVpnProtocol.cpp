@@ -22,5 +22,5 @@ void AndroidVpnProtocol::stop()
 
 void AndroidVpnProtocol::setSpeedChanged(quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond)
 {
-    emit bytesChanged(receivedBytesPerSecond, sentBytesPerSecond);
+    emit trafficUpdated(0, 0, receivedBytesPerSecond, sentBytesPerSecond);
 }

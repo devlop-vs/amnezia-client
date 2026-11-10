@@ -270,6 +270,20 @@ void SettingsController::toggleStrictKillSwitch(bool enable)
     m_appSettingsRepository->setStrictKillSwitchEnabled(enable);
 }
 
+bool SettingsController::isGlobalProxyEnabled() const
+{
+    return m_appSettingsRepository->isGlobalProxyEnabled();
+}
+
+void SettingsController::toggleGlobalProxy(bool enable)
+{
+    m_appSettingsRepository->setGlobalProxyEnabled(enable);
+    if (enable) {
+        emit siteSplitTunnelingToggled(false);
+        emit appSplitTunnelingToggled(false);
+    }
+}
+
 QString SettingsController::getInstallationUuid(bool createIfNotExists) const
 {
     return m_appSettingsRepository->getInstallationUuid(createIfNotExists);

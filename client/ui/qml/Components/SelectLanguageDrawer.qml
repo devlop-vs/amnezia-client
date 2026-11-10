@@ -1,15 +1,20 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 
 import Style 1.0
 
 import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
+import "../RedaVia" as RedaVia
 
 DrawerType2 {
     id: root
+
+    defaultColor: RedaVia.Theme.background
+    borderColor: RedaVia.Theme.borderColor
 
     expandedStateContent: Item {
         id: container
@@ -32,6 +37,7 @@ DrawerType2 {
                 id: backButton
 
                 Layout.fillWidth: true
+                backButtonImageColor: RedaVia.Theme.textPrimary
 
                 backButtonImage: "qrc:/images/controls/arrow-left.svg"
                 backButtonFunction: function() { root.closeTriggered() }
@@ -45,6 +51,10 @@ DrawerType2 {
                 Layout.rightMargin: 16
                 Layout.leftMargin: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                actionButtonImageColor: RedaVia.Theme.textPrimary
                 headerText: qsTr("Choose language")
             }
         }
@@ -66,8 +76,9 @@ DrawerType2 {
             }
 
             delegate: Item {
-                implicitWidth: root.width
-                implicitHeight: delegateContent.implicitHeight
+                implicitWidth: listView.width - 32
+                implicitHeight: delegateContent.implicitHeight + 6
+                x: 16
 
                 ColumnLayout {
                     id: delegateContent
@@ -109,11 +120,13 @@ DrawerType2 {
                         }
 
                         indicator: Rectangle {
-                            width: parent.width - 1
-                            height: parent.height
-                            color: radioButton.hovered ? AmneziaStyle.color.slateGray : AmneziaStyle.color.onyxBlack
-                            border.color: radioButton.focus ? AmneziaStyle.color.paleGray : AmneziaStyle.color.transparent
-                            border.width: radioButton.focus ? 1 : 0
+                            width: parent.width
+                            height: parent.height - 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            radius: RedaVia.Theme.inputRadius
+                            color: radioButton.hovered ? RedaVia.Theme.cardBackgroundAlt : RedaVia.Theme.cardBackground
+                            border.color: radioButton.checked || radioButton.focus ? RedaVia.Theme.primaryGreen : RedaVia.Theme.borderColor
+                            border.width: 1
 
                             Behavior on color {
                                 PropertyAnimation { duration: 200 }
@@ -140,6 +153,8 @@ DrawerType2 {
                                 Layout.bottomMargin: 20
 
                                 text: languageName
+                                color: RedaVia.Theme.textPrimary
+                                font.family: RedaVia.Theme.fontFamily
                             }
 
                             Image {
@@ -150,6 +165,11 @@ DrawerType2 {
                                 height: 24
 
                                 Layout.rightMargin: 8
+
+                                layer.enabled: true
+                                layer.effect: ColorOverlay {
+                                    color: RedaVia.Theme.primaryGreen
+                                }
                             }
                         }
 

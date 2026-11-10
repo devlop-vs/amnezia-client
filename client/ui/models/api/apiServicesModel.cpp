@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
+#include "core/utils/api/apiTextUtils.h"
 #include "core/utils/constants/apiKeys.h"
 #include "logger.h"
 
@@ -67,13 +68,13 @@ QVariant ApiServicesModel::data(const QModelIndex &index, int role) const
 
     switch (role) {
     case NameRole: {
-        return apiServiceData.serviceInfo.name;
+        return apiTextUtils::translate(apiServiceData.serviceInfo.name);
     }
     case CardDescriptionRole: {
         if (serviceType == serviceType::amneziaPremium) {
-            return apiServiceData.serviceInfo.cardDescription;
+            return apiTextUtils::translate(apiServiceData.serviceInfo.cardDescription);
         } else if (serviceType == serviceType::amneziaFree) {
-            QString description = apiServiceData.serviceInfo.cardDescription;
+            QString description = apiTextUtils::translate(apiServiceData.serviceInfo.cardDescription);
             if (!isServiceAvailable) {
                 description += tr("<p><a style=\"color: #EB5757;\">Not available in your region. If you have VPN enabled, disable it, "
                                   "return to the previous screen, and try again.</a>");
@@ -82,7 +83,7 @@ QVariant ApiServicesModel::data(const QModelIndex &index, int role) const
         }
     }
     case ServiceDescriptionRole: {
-        return apiServiceData.serviceInfo.description;
+        return apiTextUtils::translate(apiServiceData.serviceInfo.description);
     }
     case IsServiceAvailableRole: {
         if (serviceType == serviceType::amneziaFree) {
@@ -99,7 +100,7 @@ QVariant ApiServicesModel::data(const QModelIndex &index, int role) const
         return !apiServiceData.subscriptionPlansJson.isEmpty();
     }
     case PriceRole: {
-        return apiServiceData.minPriceLabel;
+        return apiTextUtils::translate(apiServiceData.minPriceLabel);
     }
     case EndDateRole: {
         return QDateTime::fromString(apiServiceData.subscription.endDate, Qt::ISODate).toLocalTime().toString("d MMM yyyy");
@@ -155,6 +156,14 @@ void ApiServicesModel::updateModel(const QJsonObject &data)
     emit serviceSelectionChanged();
 }
 
+void ApiServicesModel::refreshTranslations()
+{
+    if (!m_services.isEmpty()) {
+        emit dataChanged(index(0, 0), index(m_services.size() - 1, 0),
+                         { NameRole, CardDescriptionRole, ServiceDescriptionRole, PriceRole });
+    }
+}
+
 void ApiServicesModel::updateMinPriceLabelForType(const QString &serviceType, const QString &minPriceLabel)
 {
     const QString normalizedMinPriceLabel = minPriceLabel.trimmed();
@@ -166,6 +175,10 @@ void ApiServicesModel::updateMinPriceLabelForType(const QString &serviceType, co
         ApiServicesData &serviceData = m_services[serviceIndex];
         if (serviceData.type != serviceType) {
             continue;
+        }
+
+        if (serviceData.minPriceLabel.trimmed().startsWith(QLatin1String("id:"))) {
+            return;
         }
 
         if (serviceData.minPriceLabel == normalizedMinPriceLabel) {
@@ -214,7 +227,7 @@ QString ApiServicesModel::getSelectedServiceProtocol()
 QString ApiServicesModel::getSelectedServiceName()
 {
     auto service = m_services.at(m_selectedServiceIndex);
-    return service.serviceInfo.name;
+    return apiTextUtils::translate(service.serviceInfo.name);
 }
 
 QJsonArray ApiServicesModel::getSelectedServiceCountries()

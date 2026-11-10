@@ -10,6 +10,7 @@ import "TextTypes"
 CheckBox {
     id: root
 
+    property string fontFamily: "PT Root UI VF"
     property string descriptionText
     property string descriptionTextColor: AmneziaStyle.color.mutedGray
     property string descriptionTextDisabledColor: AmneziaStyle.color.charcoalGray
@@ -152,6 +153,7 @@ CheckBox {
 
                 text: root.text
                 color: root.enabled ? root.textColor : root.textDisabledColor
+                font.family: root.fontFamily
             }
 
             CaptionTextType {
@@ -161,6 +163,7 @@ CheckBox {
 
                 text: root.descriptionText
                 color: root.enabled ? root.descriptionTextColor : root.descriptionTextDisabledColor
+                font.family: root.fontFamily
 
                 visible: root.descriptionText !== ""
             }

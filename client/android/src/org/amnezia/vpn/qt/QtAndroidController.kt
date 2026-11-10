@@ -19,7 +19,15 @@ object QtAndroidController {
     external fun onVpnPermissionRejected()
     external fun onNotificationStateChanged()
     external fun onVpnStateChanged(stateCode: Int)
-    external fun onStatisticsUpdate(rxBytes: Long, txBytes: Long)
+    external fun onStatisticsUpdate(
+        rxDeltaBytes: Long,
+        txDeltaBytes: Long,
+        rxBytesPerSecond: Long,
+        txBytesPerSecond: Long,
+        sessionRxBytes: Long,
+        sessionTxBytes: Long,
+        connectedSinceEpochMs: Long
+    )
 
     external fun onFileOpened(uri: String)
 

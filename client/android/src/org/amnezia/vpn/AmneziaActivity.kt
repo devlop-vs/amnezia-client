@@ -141,9 +141,22 @@ class AmneziaActivity : QtActivity() {
                     }
 
                     ServiceEvent.STATISTICS_UPDATE -> {
-                        msg.data?.getStatistics()?.let { (rxBytes, txBytes) ->
-                            Log.v(TAG, "Handle statistics update: rx=$rxBytes, tx=$txBytes, resumed=$isActivityResumed, serviceConnected=$isServiceConnected")
-                            QtAndroidController.onStatisticsUpdate(rxBytes, txBytes)
+                        msg.data?.getStatistics()?.let { statistics ->
+                            Log.v(
+                                TAG,
+                                "Handle statistics update: rxDelta=${statistics.rxBytes}, " +
+                                    "txDelta=${statistics.txBytes}, resumed=$isActivityResumed, " +
+                                    "serviceConnected=$isServiceConnected"
+                            )
+                            QtAndroidController.onStatisticsUpdate(
+                                statistics.rxBytes,
+                                statistics.txBytes,
+                                statistics.rxBytesPerSecond,
+                                statistics.txBytesPerSecond,
+                                statistics.sessionRxBytes,
+                                statistics.sessionTxBytes,
+                                statistics.connectedSinceEpochMs
+                            )
                         }
                     }
 

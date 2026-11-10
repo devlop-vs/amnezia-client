@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QJsonObject>
 
+#include "core/utils/api/apiTextUtils.h"
 #include "core/utils/api/apiUtils.h"
 #include "core/utils/serverConfigUtils.h"
 #include "logger.h"
@@ -51,7 +52,7 @@ QVariant ApiAccountInfoModel::data(const QModelIndex &index, int role) const
         return tr("%1 out of %2").arg(m_accountInfoData.activeDeviceCount).arg(m_accountInfoData.maxDeviceCount);
     }
     case ServiceDescriptionRole: {
-        return m_accountInfoData.subscriptionDescription;
+        return apiTextUtils::translate(m_accountInfoData.subscriptionDescription);
     }
     case IsComponentVisibleRole: {
         return m_accountInfoData.configType == serverConfigUtils::ConfigType::AmneziaPremiumV2
@@ -138,6 +139,15 @@ void ApiAccountInfoModel::updateModel(const QJsonObject &accountInfoObject, cons
     m_supportInfo = accountInfoObject.value(apiDefs::key::supportInfo).toObject();
 
     endResetModel();
+    emit supportInfoChanged();
+}
+
+void ApiAccountInfoModel::refreshTranslations()
+{
+    if (rowCount() > 0) {
+        emit dataChanged(index(0, 0), index(0, 0), { ServiceDescriptionRole });
+    }
+    emit supportInfoChanged();
 }
 
 QVariant ApiAccountInfoModel::data(const QString &roleString)
@@ -180,7 +190,7 @@ QString ApiAccountInfoModel::getBillingEmailLink()
 
 QString ApiAccountInfoModel::getSiteLink()
 {
-    return m_supportInfo.value(apiDefs::key::websiteName).toString();
+    return apiTextUtils::translate(m_supportInfo.value(apiDefs::key::websiteName).toString());
 }
 
 QString ApiAccountInfoModel::getFullSiteLink()

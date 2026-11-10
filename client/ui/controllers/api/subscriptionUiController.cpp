@@ -6,6 +6,7 @@
 #include "core/utils/constants/apiKeys.h"
 #include "core/utils/constants/apiConstants.h"
 #include "core/utils/api/apiUtils.h"
+#include "core/utils/api/apiTextUtils.h"
 #include "core/utils/qrCodeUtils.h"
 #include "ui/controllers/systemController.h"
 #include "version.h"
@@ -15,7 +16,12 @@
 #include <QSet>
 #include <QEventLoop>
 #include <QFutureWatcher>
+#include <QNetworkDatagram>
+#include <QTcpSocket>
+#include <QUdpSocket>
+#include <QElapsedTimer>
 #include <QTimer>
+#include <cmath>
 
 #if defined(Q_OS_ANDROID) && defined(GPAY)
 #include "platforms/android/android_controller.h"
@@ -85,6 +91,9 @@ SubscriptionUiController::SubscriptionUiController(ServersController* serversCon
       m_settingsController(settingsController),
       m_connectionController(connectionController)
 {
+    QTimer::singleShot(0, this, &SubscriptionUiController::refreshTextLocalizations);
+    QTimer::singleShot(0, this, &SubscriptionUiController::refreshCityLocalizations);
+
     connect(m_apiServicesModel, &ApiServicesModel::serviceSelectionChanged, this, [this]() {
         ApiServicesModel::ApiServicesData selectedServiceData = m_apiServicesModel->selectedServiceData();
         m_apiSubscriptionPlansModel->updateModel(selectedServiceData.subscriptionPlansJson);
@@ -564,7 +573,7 @@ bool SubscriptionUiController::importTrialFromGateway(const QString &email)
 
 bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, const QString &newCountryName,
                                                     bool reloadServiceConfig, const QString &serviceProtocolOverride,
-                                                    const QString &newCityName)
+                                                    const QString &newCityCode, const QString &newCityName)
 {
     bool isConnectEvent = newCountryCode.isEmpty() && newCountryName.isEmpty() && !reloadServiceConfig;
     bool wasSubscriptionExpired = false;
@@ -574,7 +583,8 @@ bool SubscriptionUiController::updateServiceFromGateway(const QString &serverId,
     }
 
     ErrorCode errorCode = m_subscriptionController->updateServiceFromGateway(serverId, newCountryCode, isConnectEvent,
-                                                                            newCityName, serviceProtocolOverride, false, newCountryName);
+                                                                            newCityCode, serviceProtocolOverride, false,
+                                                                            newCountryName, newCityName);
 
     if (errorCode == ErrorCode::NoError) {
         refreshApiCountryModelFromServer(serverId);
@@ -869,8 +879,326 @@ bool SubscriptionUiController::getAccountInfoByEmail(const QString &email)
         const ErrorCode errorCode =
             m_subscriptionController->getAccountInfoByEmail(email, result);
         handleAccountLookupFinished(errorCode, result);
+        emit accountInfoByEmailFinished();
     });
     return true;
+}
+
+void SubscriptionUiController::refreshTextLocalizations()
+{
+    const auto refreshModels = [this]() {
+        m_apiServicesModel->refreshTranslations();
+        m_apiSubscriptionPlansModel->refreshTranslations();
+        m_apiBenefitsModel->refreshTranslations();
+        m_apiAccountInfoModel->refreshTranslations();
+    };
+
+    const auto cached = m_subscriptionController->cachedTextLocalizations();
+    apiTextUtils::setTextTranslations(cached.texts);
+    refreshModels();
+
+    if (!m_subscriptionController->shouldRefreshTextLocalizations()) {
+        return;
+    }
+
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, SubscriptionController::TextLocalizationResult>>(this);
+    connect(watcher, &QFutureWatcher<QPair<ErrorCode, SubscriptionController::TextLocalizationResult>>::finished,
+            this, [this, watcher, refreshModels]() {
+        const auto [errorCode, result] = watcher->result();
+        watcher->deleteLater();
+        if (errorCode != ErrorCode::NoError) {
+            qWarning() << "Unable to refresh API text localizations:" << static_cast<int>(errorCode);
+            return;
+        }
+        if (result.language != m_subscriptionController->cachedTextLocalizations().language) {
+            return;
+        }
+        apiTextUtils::setTextTranslations(result.texts);
+        refreshModels();
+    });
+    watcher->setFuture(m_subscriptionController->getTextLocalizations());
+}
+
+void SubscriptionUiController::refreshCityLocalizations()
+{
+    const auto cached = m_subscriptionController->cachedCityLocalizations();
+    apiTextUtils::setCityTranslations(cached.cities);
+    m_apiCountryModel->refreshTranslations();
+
+    if (!m_subscriptionController->shouldRefreshCityLocalizations()) {
+        return;
+    }
+
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, SubscriptionController::CityLocalizationResult>>(this);
+    connect(watcher, &QFutureWatcher<QPair<ErrorCode, SubscriptionController::CityLocalizationResult>>::finished,
+            this, [this, watcher]() {
+        const auto [errorCode, result] = watcher->result();
+        watcher->deleteLater();
+        if (errorCode != ErrorCode::NoError) {
+            qWarning() << "Unable to refresh city localizations:" << static_cast<int>(errorCode);
+            return;
+        }
+        if (result.language != m_subscriptionController->cachedCityLocalizations().language) {
+            return;
+        }
+        apiTextUtils::setCityTranslations(result.cities);
+        m_apiCountryModel->refreshTranslations();
+    });
+    watcher->setFuture(m_subscriptionController->getCityLocalizations());
+}
+
+void SubscriptionUiController::refreshNodeQuality()
+{
+    stopNodeQualityMonitoring();
+
+    const QString serverId = m_serversController->getDefaultServerId();
+    if (serverId.isEmpty()) {
+        return;
+    }
+
+    const quint64 generation = m_nodeProbeGeneration;
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, QList<SubscriptionController::NodeHealthInfo>>>(this);
+    connect(watcher, &QFutureWatcher<QPair<ErrorCode, QList<SubscriptionController::NodeHealthInfo>>>::finished,
+            this, [this, watcher, generation]() {
+        const auto [errorCode, nodes] = watcher->result();
+        watcher->deleteLater();
+        if (generation != m_nodeProbeGeneration || errorCode != ErrorCode::NoError) {
+            return;
+        }
+        for (const auto &node : nodes) {
+            NodeProbeJob job;
+            job.health = node;
+            job.generation = generation;
+            if (node.serverStatus == QStringLiteral("offline")) {
+                publishNodeQuality(job);
+                continue;
+            }
+            if (!node.probeHost.isEmpty() && node.probePort > 0
+                && (node.probeType == QStringLiteral("tcp") || node.probeType == QStringLiteral("udp"))) {
+                m_nodeProbeQueue.enqueue(job);
+            }
+        }
+        startPendingNodeProbes();
+    });
+    watcher->setFuture(m_subscriptionController->getNodeHealthQuality(serverId));
+}
+
+void SubscriptionUiController::stopNodeQualityMonitoring()
+{
+    ++m_nodeProbeGeneration;
+    m_nodeProbeQueue.clear();
+    const auto sockets = m_activeNodeProbeSockets;
+    m_activeNodeProbeSockets.clear();
+    m_activeNodeProbes = 0;
+    for (QAbstractSocket *socket : sockets) {
+        socket->setProperty("probeFinished", true);
+        socket->abort();
+        socket->deleteLater();
+    }
+}
+
+QString SubscriptionUiController::nodeQualityKey(const SubscriptionController::NodeHealthInfo &health) const
+{
+    if (!health.nodeId.isEmpty()) {
+        return health.nodeId;
+    }
+    return health.countryCode + QLatin1Char('|') + health.cityCode + QLatin1Char('|') + health.protocol;
+}
+
+int SubscriptionUiController::signalBarsWithHysteresis(double score, int currentBars) const
+{
+    if (currentBars <= 0) {
+        return score >= 85.0 ? 4 : score >= 70.0 ? 3 : score >= 50.0 ? 2 : 1;
+    }
+
+    if (currentBars == 4 && score < 80.0) return score >= 70.0 ? 3 : score >= 50.0 ? 2 : 1;
+    if (currentBars == 3 && score >= 90.0) return 4;
+    if (currentBars == 3 && score < 65.0) return score >= 50.0 ? 2 : 1;
+    if (currentBars == 2 && score >= 75.0) return score >= 85.0 ? 4 : 3;
+    if (currentBars == 2 && score < 45.0) return 1;
+    if (currentBars == 1 && score >= 55.0) return score >= 85.0 ? 4 : score >= 70.0 ? 3 : 2;
+    return currentBars;
+}
+
+void SubscriptionUiController::startPendingNodeProbes()
+{
+    constexpr int maxConcurrentProbes = 6;
+    while (m_activeNodeProbes < maxConcurrentProbes && !m_nodeProbeQueue.isEmpty()) {
+        probeNode(m_nodeProbeQueue.dequeue());
+    }
+}
+
+void SubscriptionUiController::probeNode(const NodeProbeJob &job)
+{
+    if (job.generation != m_nodeProbeGeneration) {
+        return;
+    }
+    if (job.health.probeType == QStringLiteral("udp")) {
+        probeUdpNode(job);
+    } else {
+        probeTcpNode(job);
+    }
+}
+
+void SubscriptionUiController::probeTcpNode(const NodeProbeJob &job)
+{
+    ++m_activeNodeProbes;
+    auto *socket = new QTcpSocket(this);
+    m_activeNodeProbeSockets.insert(socket);
+    auto *timeout = new QTimer(socket);
+    auto *elapsed = new QElapsedTimer();
+    timeout->setSingleShot(true);
+    elapsed->start();
+
+    const auto finish = [this, socket, elapsed, job](int latencyMs) mutable {
+        if (socket->property("probeFinished").toBool()) {
+            return;
+        }
+        socket->setProperty("probeFinished", true);
+        m_activeNodeProbeSockets.remove(socket);
+        socket->abort();
+        socket->deleteLater();
+        delete elapsed;
+        --m_activeNodeProbes;
+        completeNodeProbe(job, latencyMs);
+        startPendingNodeProbes();
+    };
+    connect(socket, &QTcpSocket::connected, this, [finish, elapsed]() mutable {
+        finish(static_cast<int>(elapsed->elapsed()));
+    });
+    connect(socket, &QTcpSocket::errorOccurred, this, [finish](QAbstractSocket::SocketError) mutable {
+        finish(-1);
+    });
+    connect(timeout, &QTimer::timeout, this, [finish]() mutable { finish(-1); });
+    timeout->start(2000);
+    socket->connectToHost(job.health.probeHost, job.health.probePort);
+}
+
+void SubscriptionUiController::probeUdpNode(const NodeProbeJob &job)
+{
+    ++m_activeNodeProbes;
+    auto *socket = new QUdpSocket(this);
+    m_activeNodeProbeSockets.insert(socket);
+    auto *timeout = new QTimer(socket);
+    auto *elapsed = new QElapsedTimer();
+    timeout->setSingleShot(true);
+
+    const auto finish = [this, socket, elapsed, job](int latencyMs) mutable {
+        if (socket->property("probeFinished").toBool()) {
+            return;
+        }
+        socket->setProperty("probeFinished", true);
+        m_activeNodeProbeSockets.remove(socket);
+        socket->abort();
+        socket->deleteLater();
+        delete elapsed;
+        --m_activeNodeProbes;
+        completeNodeProbe(job, latencyMs);
+        startPendingNodeProbes();
+    };
+    connect(socket, &QUdpSocket::connected, this, [socket, elapsed, finish]() mutable {
+        const QByteArray payload = QByteArrayLiteral("RedaVPN-UDP-Probe");
+        elapsed->start();
+        if (socket->write(payload) != payload.size()) {
+            finish(-1);
+        }
+    });
+    connect(socket, &QUdpSocket::readyRead, this, [socket, elapsed, finish]() mutable {
+        if (socket->hasPendingDatagrams()) {
+            socket->receiveDatagram();
+            finish(static_cast<int>(elapsed->elapsed()));
+        }
+    });
+    connect(socket, &QUdpSocket::errorOccurred, this, [finish](QAbstractSocket::SocketError) mutable {
+        finish(-1);
+    });
+    connect(timeout, &QTimer::timeout, this, [finish]() mutable { finish(-1); });
+    timeout->start(2000);
+    socket->connectToHost(job.health.probeHost, job.health.probePort);
+}
+
+void SubscriptionUiController::completeNodeProbe(NodeProbeJob job, int latencyMs)
+{
+    if (job.generation != m_nodeProbeGeneration) {
+        return;
+    }
+    if (latencyMs >= 0) {
+        job.successfulLatencies.append(latencyMs);
+    }
+    ++job.attempt;
+    if (job.attempt < 3) {
+        m_nodeProbeQueue.enqueue(job);
+    } else {
+        publishNodeQuality(job);
+    }
+}
+
+void SubscriptionUiController::publishNodeQuality(const NodeProbeJob &job)
+{
+    const auto &health = job.health;
+    if (health.serverStatus == QStringLiteral("offline")) {
+        m_apiCountryModel->setNodeQuality(health.countryCode, health.cityCode, -1, 0, 0,
+                                          QStringLiteral("offline"), QStringLiteral("Offline"));
+        return;
+    }
+    NodeQualityHistory &history = m_nodeQualityHistory[nodeQualityKey(health)];
+    if (job.successfulLatencies.isEmpty()) {
+        ++history.consecutiveFailedBatches;
+        if (history.consecutiveFailedBatches >= 3) {
+            history.emaScore = 0.0;
+            history.signalBars = 0;
+            m_apiCountryModel->setNodeQuality(health.countryCode, health.cityCode, -1, 0, 0,
+                                              QStringLiteral("offline"), QStringLiteral("Offline"));
+        } else {
+            m_apiCountryModel->setNodeQuality(health.countryCode, health.cityCode, -1, 0, -1,
+                                              QStringLiteral("unknown"), QStringLiteral("Unknown"));
+        }
+        return;
+    }
+    history.consecutiveFailedBatches = 0;
+
+    int latencyTotal = 0;
+    for (int latency : job.successfulLatencies) {
+        latencyTotal += latency;
+    }
+    const int latencyMs = qRound(static_cast<double>(latencyTotal) / job.successfulLatencies.size());
+    double jitterMs = 0.0;
+    if (job.successfulLatencies.size() > 1) {
+        double variance = 0.0;
+        for (int latency : job.successfulLatencies) {
+            const double difference = latency - latencyMs;
+            variance += difference * difference;
+        }
+        jitterMs = std::sqrt(variance / job.successfulLatencies.size());
+    }
+
+    const double successRate = static_cast<double>(job.successfulLatencies.size()) / 3.0;
+    const double lossRate = 1.0 - successRate;
+    const double latencyScore = qBound(0.0, (500.0 - latencyMs) / 450.0 * 100.0, 100.0);
+    const double lossScore = qBound(0.0, (0.20 - lossRate) / 0.20 * 100.0, 100.0);
+    const double successScore = successRate * 100.0;
+    const double jitterScore = qBound(0.0, (150.0 - jitterMs) / 145.0 * 100.0, 100.0);
+    const double clientScore = latencyScore * (30.0 / 85.0) + lossScore * (25.0 / 85.0)
+            + successScore * (20.0 / 85.0) + jitterScore * (10.0 / 85.0);
+    const double serverScore = health.serverLoadScore >= 0 ? qBound(0, health.serverLoadScore, 100) : clientScore;
+    double measuredScore = clientScore * 0.8 + serverScore * 0.2;
+    QString status = health.serverStatus == QStringLiteral("degraded")
+            || health.capacityStatus == QStringLiteral("degraded")
+            || health.capacityStatus == QStringLiteral("overloaded")
+            ? QStringLiteral("degraded") : QStringLiteral("online");
+    if (status == QStringLiteral("degraded")) {
+        measuredScore = qMin(measuredScore, 84.0);
+    }
+
+    constexpr double emaAlpha = 0.35;
+    history.emaScore = history.emaScore < 0.0
+            ? measuredScore : emaAlpha * measuredScore + (1.0 - emaAlpha) * history.emaScore;
+    const int score = qRound(history.emaScore);
+    const int bars = signalBarsWithHysteresis(history.emaScore, history.signalBars);
+    history.signalBars = bars;
+    const QString label = bars == 4 ? QStringLiteral("Excellent") : bars == 3 ? QStringLiteral("Good")
+            : bars == 2 ? QStringLiteral("Fair") : QStringLiteral("Poor");
+    m_apiCountryModel->setNodeQuality(health.countryCode, health.cityCode, latencyMs, bars, score, status, label);
 }
 
 void SubscriptionUiController::updateApiCountryModel()

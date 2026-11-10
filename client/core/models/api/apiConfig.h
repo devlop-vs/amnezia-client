@@ -20,6 +20,9 @@ struct ApiConfig
     QString userCountryCode;
     QString serverCountryCode;
     QString serverCountryName;
+    QString serverCityCode;
+    QString serverCityName;
+    QString endpointUid;
     QString vpnKey;
     
     struct Subscription {

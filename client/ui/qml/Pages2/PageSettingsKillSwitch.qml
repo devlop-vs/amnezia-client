@@ -8,9 +8,16 @@ import Style 1.0
 import "./"
 import "../Controls2"
 import "../Config"
+import "../RedaVia" as RedaVia
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     function openPageCompatible(pageEnum, slide) {
         var pagePath = PageController.getPagePath(pageEnum)
@@ -29,6 +36,7 @@ PageType {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 20 + PageController.safeAreaTopMargin
+        backButtonImageColor: RedaVia.Theme.textPrimary
     }
 
     FlickableType {
@@ -50,6 +58,9 @@ PageType {
 
                 headerText: qsTr("KillSwitch")
                 descriptionText: qsTr("Enable to ensure network traffic goes through a secure VPN tunnel, preventing accidental exposure of your IP and DNS queries if the connection drops")
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
 
                 showSwitcher: true
                 switcher {
@@ -78,6 +89,15 @@ PageType {
 
                 text: qsTr("Soft KillSwitch")
                 descriptionText: qsTr("Internet access is blocked if the VPN disconnects unexpectedly")
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                selectedColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.textPrimary
+                selectedTextColor: RedaVia.Theme.primaryGreen
+                descriptionColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                cardRadius: RedaVia.Theme.buttonRadius
+                fontFamily: RedaVia.Theme.fontFamily
 
                 onClicked: function() {
                     SettingsController.strictKillSwitchEnabled = false
@@ -87,7 +107,13 @@ PageType {
                 Keys.onReturnPressed: this.clicked()
             }
 
-            DividerType {}
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                height: 1
+                color: RedaVia.Theme.borderColor
+            }
 
             VerticalRadioButton {
                 id: strictKillSwitch
@@ -102,6 +128,15 @@ PageType {
 
                 text: qsTr("Strict KillSwitch")
                 descriptionText: qsTr("Internet connection is blocked even when VPN is turned off manually or hasn't started")
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                selectedColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.textPrimary
+                selectedTextColor: RedaVia.Theme.primaryGreen
+                descriptionColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                cardRadius: RedaVia.Theme.buttonRadius
+                fontFamily: RedaVia.Theme.fontFamily
 
                 onClicked: function() {
                     var headerText = qsTr("Just a little heads-up")
@@ -122,10 +157,6 @@ PageType {
                 Keys.onReturnPressed: this.clicked()
             }
 
-            DividerType {
-                visible: false
-            }
-            
             LabelWithButtonType {
                 Layout.topMargin: 32
                 Layout.fillWidth: true
@@ -134,6 +165,14 @@ PageType {
                 text: qsTr("DNS Exceptions")
                 descriptionText: qsTr("DNS servers listed here will remain accessible when KillSwitch is active.")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
 
                 clickedFunction: function() {
                     root.openPageCompatible(PageEnum.PageSettingsKillSwitchExceptions)

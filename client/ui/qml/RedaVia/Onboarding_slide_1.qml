@@ -93,7 +93,7 @@ Rectangle {
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "What is VPN?"
+                    text: qsTr("What is VPN?")
                 }
 
                 Text {
@@ -104,7 +104,7 @@ Rectangle {
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "Browse more securely with one click!"
+                    text: qsTr("Browse more securely with one click!")
                 }
 
                 Text {
@@ -117,7 +117,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     lineHeight: Math.max(22, onboarding_slide_1.bodySize * 1.5)
                     lineHeightMode: Text.FixedHeight
-                    text: "A VPN improves your online privacy, keeping your online activities safe from prying eyes and making it safer to use public Wi-Fi."
+                    text: qsTr("A VPN improves your online privacy, keeping your online activities safe from prying eyes and making it safer to use public Wi-Fi.")
                 }
             }
 
@@ -141,7 +141,7 @@ Rectangle {
                 font.family: "Inter"
                 font.pixelSize: onboarding_slide_1.buttonTextSize
                 font.weight: Font.Bold
-                text: "Next"
+                text: qsTr("Next")
             }
 
             MouseArea {

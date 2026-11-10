@@ -12,6 +12,7 @@
 class ApiAccountInfoModel : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(QString siteLink READ getSiteLink NOTIFY supportInfoChanged)
 
 public:
     enum Roles {
@@ -36,6 +37,7 @@ public:
 
 public slots:
     void updateModel(const QJsonObject &accountInfoObject, const QJsonObject &serverConfig);
+    void refreshTranslations();
     QVariant data(const QString &roleString);
     QJsonArray getAvailableCountries();
     QJsonArray getIssuedConfigsInfo();
@@ -45,6 +47,9 @@ public slots:
     QString getBillingEmailLink();
     QString getSiteLink();
     QString getFullSiteLink();
+
+signals:
+    void supportInfoChanged();
 
 protected:
     QHash<int, QByteArray> roleNames() const override;

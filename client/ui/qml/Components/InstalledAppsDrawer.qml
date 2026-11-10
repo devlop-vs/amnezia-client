@@ -9,12 +9,17 @@ import SortFilterProxyModel 0.2
 
 import InstalledAppsModel 1.0
 import Style 1.0
+import "../RedaVia" as RedaVia
 
 DrawerType2 {
     id: root
 
+    property bool useRedaViaTheme: false
+
     anchors.fill: parent
     expandedHeight: parent.height * 0.9
+    defaultColor: useRedaViaTheme ? RedaVia.Theme.background : AmneziaStyle.color.onyxBlack
+    borderColor: useRedaViaTheme ? RedaVia.Theme.borderColor : AmneziaStyle.color.slateGray
 
     onAboutToShow: {
         PageController.showBusyIndicator(true)
@@ -42,6 +47,7 @@ DrawerType2 {
 
             BackButtonType {
                 backButtonImage: "qrc:/images/controls/arrow-left.svg"
+                backButtonImageColor: root.useRedaViaTheme ? RedaVia.Theme.textPrimary : AmneziaStyle.color.paleGray
                 backButtonFunction: function() {
                     root.closeTriggered()
                 }
@@ -54,6 +60,9 @@ DrawerType2 {
                 Layout.rightMargin: 16
                 Layout.leftMargin: 16
 
+                fontFamily: root.useRedaViaTheme ? RedaVia.Theme.fontFamily : "PT Root UI VF"
+                headerTextColor: root.useRedaViaTheme ? RedaVia.Theme.textPrimary : AmneziaStyle.color.paleGray
+                descriptionTextColor: root.useRedaViaTheme ? RedaVia.Theme.textSecondary : AmneziaStyle.color.mutedGray
                 headerText: qsTr("Choose application")
             }
 
@@ -80,12 +89,37 @@ DrawerType2 {
                     id: buttonGroup
                 }
 
-                delegate: ColumnLayout {
+                delegate: Item {
                     width: listView.width
+                    implicitHeight: appRow.implicitHeight + (root.useRedaViaTheme ? 16 : 0)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.bottomMargin: root.useRedaViaTheme ? 8 : 0
+                        visible: root.useRedaViaTheme
+                        color: RedaVia.Theme.cardBackground
+                        border.color: RedaVia.Theme.borderColor
+                        border.width: 1
+                        radius: RedaVia.Theme.buttonRadius
+                    }
 
                     RowLayout {
+                        id: appRow
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+
                         CheckBoxType {
                             Layout.fillWidth: true
+
+                            fontFamily: root.useRedaViaTheme ? RedaVia.Theme.fontFamily : "PT Root UI VF"
+                            textColor: root.useRedaViaTheme ? RedaVia.Theme.textPrimary : AmneziaStyle.color.paleGray
+                            descriptionTextColor: root.useRedaViaTheme ? RedaVia.Theme.textSecondary : AmneziaStyle.color.mutedGray
+                            hoveredColor: root.useRedaViaTheme ? RedaVia.Theme.cardBackgroundAlt : AmneziaStyle.color.barelyTranslucentWhite
+                            defaultBorderColor: root.useRedaViaTheme ? RedaVia.Theme.borderColor : AmneziaStyle.color.paleGray
+                            checkedBorderColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.goldenApricot
+                            checkedImageColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.goldenApricot
+                            borderFocusedColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.paleGray
 
                             text: appName
                             checked: isAppSelected
@@ -100,11 +134,15 @@ DrawerType2 {
                             sourceSize.width: 24
                             sourceSize.height: 24
 
-                            Layout.rightMargin: 48
+                            Layout.rightMargin: 24
                         }
                     }
 
-                    DividerType {}
+                    DividerType {
+                        anchors.bottom: parent.bottom
+                        width: parent.width
+                        visible: !root.useRedaViaTheme
+                    }
                 }
             }
         }
@@ -119,7 +157,16 @@ DrawerType2 {
             anchors.rightMargin: 16
             anchors.leftMargin: 16
 
-            backgroundColor: AmneziaStyle.color.slateGray
+            fontFamily: root.useRedaViaTheme ? RedaVia.Theme.fontFamily : "PT Root UI VF"
+            headerTextColor: root.useRedaViaTheme ? RedaVia.Theme.textSecondary : AmneziaStyle.color.mutedGray
+            textFieldTextColor: root.useRedaViaTheme ? RedaVia.Theme.textPrimary : AmneziaStyle.color.paleGray
+            textFieldPlaceholderTextColor: root.useRedaViaTheme ? RedaVia.Theme.textPlaceholder : AmneziaStyle.color.mutedGray
+            borderColor: root.useRedaViaTheme ? RedaVia.Theme.borderColor : AmneziaStyle.color.slateGray
+            borderFocusedColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.paleGray
+            backgroundColor: root.useRedaViaTheme ? RedaVia.Theme.cardBackground : AmneziaStyle.color.slateGray
+            backgroundDisabledColor: root.useRedaViaTheme ? RedaVia.Theme.cardBackground : AmneziaStyle.color.slateGray
+            bgBorderHoveredColor: root.useRedaViaTheme ? RedaVia.Theme.cardBackgroundAlt : AmneziaStyle.color.slateGray
+            backgroundRadius: root.useRedaViaTheme ? RedaVia.Theme.inputRadius : 16
 
             textField.placeholderText: qsTr("application name")
         }
@@ -133,6 +180,16 @@ DrawerType2 {
             anchors.bottomMargin: 16
             anchors.rightMargin: 16
             anchors.leftMargin: 16
+
+            fontFamily: root.useRedaViaTheme ? RedaVia.Theme.fontFamily : "PT Root UI VF"
+            defaultColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.paleGray
+            hoveredColor: root.useRedaViaTheme ? Qt.lighter(RedaVia.Theme.primaryGreen, 1.08) : AmneziaStyle.color.lightGray
+            pressedColor: root.useRedaViaTheme ? Qt.darker(RedaVia.Theme.primaryGreen, 1.08) : AmneziaStyle.color.mutedGray
+            disabledColor: root.useRedaViaTheme ? RedaVia.Theme.borderColor : AmneziaStyle.color.charcoalGray
+            textColor: root.useRedaViaTheme ? RedaVia.Theme.background : AmneziaStyle.color.midnightBlack
+            borderColor: root.useRedaViaTheme ? RedaVia.Theme.primaryGreen : AmneziaStyle.color.paleGray
+            borderFocusedColor: root.useRedaViaTheme ? RedaVia.Theme.textPrimary : AmneziaStyle.color.paleGray
+            buttonRadius: root.useRedaViaTheme ? RedaVia.Theme.buttonRadius : 16
 
             text: qsTr("Add selected")
 

@@ -170,7 +170,8 @@ void CoreController::initCoreControllers()
 
 void CoreController::initControllers()
 {
-    m_connectionUiController = new ConnectionUiController(m_connectionController, m_serversController, this);
+    m_connectionUiController = new ConnectionUiController(
+        m_connectionController, m_serversController, m_appSettingsRepository, this);
     setQmlContextProperty("ConnectionController", m_connectionUiController);
 
     if (m_engine) {
@@ -296,6 +297,12 @@ void CoreController::initSignalHandlers()
 
     // Trigger initial update after handlers are connected
     m_serversUiController->updateModel();
+
+    const QString defaultServerId = m_serversController->getDefaultServerId();
+    if (!defaultServerId.isEmpty()) {
+        m_subscriptionUiController->refreshApiCountryModelFromServer(defaultServerId);
+    }
+
     if (m_serversUiController->hasServersFromGatewayApi()) {
         m_apiNewsUiController->fetchNews(false);
     }
@@ -303,6 +310,8 @@ void CoreController::initSignalHandlers()
 
 void CoreController::updateTranslator(const QLocale &locale)
 {
+    QLocale::setDefault(locale);
+
     if (!m_translator->isEmpty()) {
         QCoreApplication::removeTranslator(m_translator);
     }

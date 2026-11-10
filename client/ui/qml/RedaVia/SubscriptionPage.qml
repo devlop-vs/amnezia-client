@@ -114,11 +114,11 @@ Rectangle {
         PrimaryButton {
             Layout.leftMargin: 20
             Layout.rightMargin: 20
-            Layout.bottomMargin: root.height - Theme.tabBarY + 20
+            Layout.bottomMargin: 20
             text: "Continue"
             onClicked: root.continueClicked(root.selectedPlan)
         }
     }
 
-    BottomTabBar { currentIndex: 2 }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

@@ -15,6 +15,10 @@ Item {
 
     property string headerText
     property string descriptionText
+    property string fontFamily: "PT Root UI VF"
+    property color headerTextColor: AmneziaStyle.color.paleGray
+    property color descriptionTextColor: AmneziaStyle.color.mutedGray
+    property color actionButtonImageColor: AmneziaStyle.color.paleGray
 
     implicitWidth: content.implicitWidth
     implicitHeight: content.implicitHeight
@@ -30,6 +34,8 @@ Item {
                 Layout.fillWidth: true
 
                 text: root.headerText
+                color: root.headerTextColor
+                font.family: root.fontFamily
             }
 
             ImageButtonType {
@@ -39,7 +45,7 @@ Item {
                 implicitHeight: 40
 
                 image: root.actionButtonImage
-                imageColor: AmneziaStyle.color.paleGray
+                imageColor: root.actionButtonImageColor
 
                 visible: image ? true : false
 
@@ -59,7 +65,8 @@ Item {
 
             text: root.descriptionText
 
-            color: AmneziaStyle.color.mutedGray
+            color: root.descriptionTextColor
+            font.family: root.fontFamily
 
             visible: root.descriptionText !== ""
         }

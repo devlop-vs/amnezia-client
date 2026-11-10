@@ -1,6 +1,7 @@
 #ifndef SECUREAPPSETTINGSREPOSITORY_H
 #define SECUREAPPSETTINGSREPOSITORY_H
 
+#include <QDate>
 #include <QObject>
 #include <QLocale>
 #include <QString>
@@ -10,12 +11,19 @@
 #include <QVector>
 #include <QDateTime>
 #include <QByteArray>
+#include <QJsonObject>
 
 #include "core/utils/routeModes.h"
 #include "core/utils/commonStructs.h"
 #include "secureQSettings.h"
 
 using namespace amnezia;
+
+struct VpnUsagePeriod
+{
+    qint64 durationMs = 0;
+    quint64 trafficBytes = 0;
+};
 
 class SecureAppSettingsRepository : public QObject
 {
@@ -53,6 +61,9 @@ public:
     bool isAppsSplitTunnelingEnabled() const;
     void setAppsSplitTunnelingEnabled(bool enabled);
 
+    bool isGlobalProxyEnabled() const;
+    void setGlobalProxyEnabled(bool enabled);
+
     QString getGatewayEndpoint(bool isTestPurchase = false) const;
     void setGatewayEndpoint(const QString &endpoint);
     void resetGatewayEndpoint();
@@ -86,6 +97,11 @@ public:
     QStringList getReadNewsIds() const;
     void setReadNewsIds(const QStringList &ids);
 
+    VpnUsagePeriod vpnUsageForDate(const QDate &date) const;
+    void setVpnUsageForDate(const QDate &date, const VpnUsagePeriod &usage);
+    VpnUsagePeriod vpnUsageForMonth(const QString &month) const;
+    void setVpnUsageForMonth(const QString &month, const VpnUsagePeriod &usage);
+
     bool isHomeAdLabelVisible() const;
     void disableHomeAdLabel();
     bool isPremV1MigrationReminderActive() const;
@@ -93,6 +109,18 @@ public:
     QByteArray backupAppConfig() const;
     bool restoreAppConfig(const QByteArray &cfg);
     void clearSettings();
+
+    QJsonObject textLocalizationCache(const QString &language) const;
+    QString textLocalizationVersion(const QString &language) const;
+    QDateTime textLocalizationUpdatedAt(const QString &language) const;
+    void setTextLocalizationCache(const QString &language, const QString &version, const QJsonObject &texts,
+                                  const QDateTime &updatedAt);
+
+    QJsonObject cityLocalizationCache(const QString &language) const;
+    QString cityLocalizationVersion(const QString &language) const;
+    QDateTime cityLocalizationUpdatedAt(const QString &language) const;
+    void setCityLocalizationCache(const QString &language, const QString &version, const QJsonObject &cities,
+                                  const QDateTime &updatedAt);
 
     QByteArray xraySavedConfigs() const;
     void setXraySavedConfigs(const QByteArray &data);

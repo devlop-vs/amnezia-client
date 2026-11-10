@@ -44,7 +44,7 @@ PageType {
         id: site
 
         readonly property string title: qsTr("Website")
-        readonly property string description: ApiAccountInfoModel.getSiteLink()
+        readonly property string description: ApiAccountInfoModel.siteLink
         readonly property string link: ApiAccountInfoModel.getFullSiteLink()
     }
 

@@ -17,6 +17,7 @@ Item {
     property string descriptionText
     property string descriptionLinkText
     property string descriptionLinkUrl
+    property color descriptionLinkTextColor: AmneziaStyle.color.goldenApricot
     property alias headerRow: headerRow
 
     implicitWidth: content.implicitWidth
@@ -57,7 +58,7 @@ Item {
             Layout.topMargin: 16
             Layout.fillWidth: true
             text: root.descriptionLinkText !== "" && root.descriptionLinkUrl !== ""
-                  ? ("<a href=\"" + root.descriptionLinkUrl + "\" style=\"color: " + AmneziaStyle.color.goldenApricotString + ";\">" + root.descriptionLinkText + "</a>")
+                  ? ("<a href=\"" + root.descriptionLinkUrl + "\" style=\"color: " + root.descriptionLinkTextColor + ";\">" + root.descriptionLinkText + "</a>")
                   : ""
             font.family: root.fontFamily
             textFormat: Text.RichText

@@ -4,17 +4,34 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
-    width: Theme.screenWidth
-    height: Theme.screenHeight
+    width: StackView.view ? StackView.view.width : Theme.screenWidth
+    height: StackView.view ? StackView.view.height : Theme.screenHeight
     radius: Theme.screenRadius
     color: Theme.background
     clip: true
 
     signal menuItemClicked(string item)
+    signal settingsRequested()
+    signal connectionSettingsRequested()
+    signal appearanceRequested()
+    signal aboutRequested()
 
     property string displayInitial: "?"
-    property string displayName: "Guest"
-    property string displaySubtitle: "Sign in to your account"
+    property string displayName: qsTr("Guest")
+    property string displaySubtitle: qsTr("Sign in to your account")
+
+    property var menuItems: [
+        { "key": "account", "text": qsTr("Account") },
+        { "key": "reloadConfig", "text": qsTr("Reload Config") },
+        { "key": "oldSettings", "text": qsTr("Old Settings") },
+        { "key": "subscriptions", "text": qsTr("Subscriptions") },
+        { "key": "refreshAccount", "text": qsTr("Refresh Account") },
+        { "key": "resetPubkeys", "text": qsTr("Reset Pubkeys") },
+        { "key": "connectionSettings", "text": qsTr("Connection Settings") },
+        { "key": "killSwitch", "text": qsTr("Kill Switch") },
+        { "key": "application", "text": qsTr("Application") },
+        { "key": "helpAbout", "text": qsTr("Help & About") }
+    ]
 
     function reloadVpnConfigFromGateway() {
         var serverId = ServersUiController.defaultServerId
@@ -107,8 +124,8 @@ Rectangle {
             displaySubtitle = AuthController.userEmail
         } else {
             displayInitial = "?"
-            displayName = "Guest"
-            displaySubtitle = "Sign in to your account"
+            displayName = qsTr("Guest")
+            displaySubtitle = qsTr("Sign in to your account")
         }
     }
 
@@ -139,30 +156,32 @@ Rectangle {
     }
 
     onMenuItemClicked: function(item) {
-        if (item === "Account") {
+        if (item === "account") {
             var sv = root.StackView.view
             if (sv) {
                 sv.push("qrc:/ui/qml/RedaVia/AccessPage.qml")
             }
-        } else if (item === "Auto Connect") {
-            var sv = root.StackView.view
-            if (sv) {
-                var pagePath = "qrc:/ui/qml/Pages2/PageSettings.qml"
-                sv.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
-            }
-        } else if (item === "Devices") {
+        } else if (item === "oldSettings") {
+            root.settingsRequested()
+        } else if (item === "connectionSettings") {
+            root.connectionSettingsRequested()
+        } else if (item === "application") {
+            root.appearanceRequested()
+        } else if (item === "helpAbout") {
+            root.aboutRequested()
+        } else if (item === "reloadConfig") {
             root.reloadVpnConfigFromGateway()
-        } else if (item === "Kill Switch") {
+        } else if (item === "killSwitch") {
             var sv = root.StackView.view
             if (sv) {
                 var pagePath = "qrc:/ui/qml/Pages2/PageSettingsKillSwitch.qml"
                 sv.push(pagePath, { "objectName": pagePath }, StackView.PushTransition)
             }
-        } else if (item === "Reset") {
+        } else if (item === "resetPubkeys") {
             root.resetVpnClientIdentityFromGateway()
-        } else if (item === "Settings") {
+        } else if (item === "subscriptions") {
             root.openSubscriptionSettings()
-        } else if (item === "Refresh Account") {
+        } else if (item === "refreshAccount") {
             root.refreshAccount()
         }
     }
@@ -176,7 +195,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 14
-            text: "Profile"
+            text: qsTr("Profile")
             font { family: Theme.fontFamily; pixelSize: 24; bold: true }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -230,13 +249,12 @@ Rectangle {
             spacing: 8
             clip: true
 
-            // Keep the last menu item scrollable above the overlaid navigation bar.
             footer: Item {
                 width: ListView.view ? ListView.view.width : 0
-                height: bottomTabBar.height
+                height: root.StackView.view ? root.StackView.view.bottomNavigationHeight : 0
             }
 
-            model: ["Account", "Devices", "Protocol", "Auto Connect", "Kill Switch", "Reset", "Settings", "Refresh Account", "Language", "Appearance", "Help & About"]
+            model: root.menuItems
 
             delegate: Rectangle {
                 width: ListView.view.width
@@ -255,7 +273,7 @@ Rectangle {
                     anchors.rightMargin: 20
 
                     Text {
-                        text: modelData
+                        text: modelData.text
                         font { family: Theme.fontFamily; pixelSize: 14; weight: Font.Medium }
                         color: Theme.textPrimary
                         Layout.fillWidth: true
@@ -272,14 +290,11 @@ Rectangle {
                     id: menuMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: root.menuItemClicked(modelData)
+                    onClicked: root.menuItemClicked(modelData.key)
                 }
             }
         }
     }
 
-    BottomTabBar {
-        id: bottomTabBar
-        currentIndex: 3
-    }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

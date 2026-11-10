@@ -8,21 +8,21 @@ import Style 1.0
 import "./"
 import "../Controls2"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Controls2/TextTypes"
 import "../Components"
 
 PageType {
     id: root
 
-    function openPageCompatible(pageEnum, slide) {
-        var pagePath = PageController.getPagePath(pageEnum)
-        var stackView = root.StackView.view
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
-        if (stackView) {
-            stackView.push(pagePath, { "objectName": pagePath }, slide === false ? StackView.Immediate : StackView.PushTransition)
-        } else {
-            PageController.goToPage(pageEnum, slide === false ? false : true)
-        }
+    function openPageCompatible(pageEnum, slide) {
+        PageController.goToPage(pageEnum, slide === false ? false : true)
     }
 
     BackButtonType {
@@ -32,6 +32,7 @@ PageType {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 20 + PageController.safeAreaTopMargin
+        backButtonImageColor: RedaVia.Theme.textPrimary
 
         onActiveFocusChanged: {
             if(backButton.enabled && backButton.activeFocus) {
@@ -56,6 +57,9 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
                 headerText: qsTr("Application")
             }
         }
@@ -67,6 +71,20 @@ PageType {
             width: listView.width
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcherAllowScreenshots
 
                 visible: GC.isMobile()
@@ -85,6 +103,7 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: GC.isMobile()
             }
 
@@ -94,6 +113,19 @@ PageType {
                 visible: Qt.platform.os === "android" && !SettingsController.isNotificationPermissionGranted
 
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 6
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Enable notifications")
                 descriptionText: qsTr("Enable notifications to show the VPN state in the status bar")
@@ -105,10 +137,25 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: Qt.platform.os === "android" && !SettingsController.isNotificationPermissionGranted
             }
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcherAutoStart
 
                 visible: !GC.isMobile()
@@ -128,10 +175,25 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: !GC.isMobile()
             }
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcherAutoConnect
 
                 visible: !GC.isMobile()
@@ -151,10 +213,25 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: !GC.isMobile() && !IsMacOsNeBuild
             }
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcherStartMinimized
 
                 visible: !GC.isMobile()
@@ -177,10 +254,25 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: !GC.isMobile() && ServersUiController.hasServersFromGatewayApi
             }
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcherNewsNotificationEnabled
 
                 visible: ServersUiController.hasServersFromGatewayApi
@@ -200,6 +292,7 @@ PageType {
             }
 
             DividerType {
+                color: RedaVia.Theme.borderColor
                 visible: !GC.isMobile()
             }
         }
@@ -212,6 +305,19 @@ PageType {
                 id: labelWithButtonLanguage
 
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 6
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Language")
                 descriptionText: LanguageUiController.currentLanguageName
@@ -222,12 +328,25 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
             LabelWithButtonType {
                 id: labelWithButtonLogging
 
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 6
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Logging")
                 descriptionText: SettingsController.isLoggingEnabled ? qsTr("Enabled") : qsTr("Disabled")
@@ -238,20 +357,33 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
             LabelWithButtonType {
                 id: labelWithButtonReset
-                
+
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 6
+                Layout.bottomMargin: 16
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.dangerRed
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.dangerRed
+                leftImageColor: RedaVia.Theme.dangerRed
 
                 text: qsTr("Reset settings and remove all data from the application")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
-                textColor: AmneziaStyle.color.vibrantRed
 
                 clickedFunction: function() {
                     var headerText = qsTr("Reset settings and remove all data from the application?")
-                    var descriptionText = qsTr("All settings will be reset to default. All installed AmneziaVPN services will still remain on the server.")
+                    var descriptionText = qsTr("All settings will be reset to default. All installed RedaVPN services will still remain on the server.")
                     var yesButtonText = qsTr("Continue")
                     var noButtonText = qsTr("Cancel")
 
@@ -271,7 +403,7 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
         }
     }
 

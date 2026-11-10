@@ -42,13 +42,26 @@ VpnConnection::VpnConnection(SecureServersRepository* serversRepository, SecureA
     connect(AndroidController::instance(), &AndroidController::connectionStateChanged,
             this, &VpnConnection::setConnectionState, Qt::QueuedConnection);
     connect(AndroidController::instance(), &AndroidController::statisticsUpdated,
-            this, &VpnConnection::onBytesChanged, Qt::QueuedConnection);
+            this, &VpnConnection::onAndroidStatisticsUpdated, Qt::QueuedConnection);
 #endif
 
 #if defined(Q_OS_IOS) || defined(MACOS_NE)
     m_checkTimer.setInterval(1000);
     connect(IosController::Instance(), &IosController::connectionStateChanged, this, &VpnConnection::setConnectionState);
-    connect(IosController::Instance(), &IosController::bytesChanged, this, &VpnConnection::onBytesChanged);
+    connect(IosController::Instance(), &IosController::bytesChanged, this,
+            [this](quint64 receivedDeltaBytes, quint64 sentDeltaBytes) {
+        qint64 elapsedMs = 0;
+        if (m_iosTrafficUpdateTimer.isValid()) {
+            elapsedMs = m_iosTrafficUpdateTimer.restart();
+        } else {
+            m_iosTrafficUpdateTimer.start();
+        }
+        const quint64 rxSpeed = elapsedMs > 0
+            ? static_cast<quint64>(static_cast<long double>(receivedDeltaBytes) * 1000.0L / elapsedMs) : 0;
+        const quint64 txSpeed = elapsedMs > 0
+            ? static_cast<quint64>(static_cast<long double>(sentDeltaBytes) * 1000.0L / elapsedMs) : 0;
+        onTrafficUpdated(receivedDeltaBytes, sentDeltaBytes, rxSpeed, txSpeed);
+    });
 #endif
 }
 
@@ -56,11 +69,39 @@ VpnConnection::~VpnConnection()
 {
 }
 
-void VpnConnection::onBytesChanged(quint64 receivedBytes, quint64 sentBytes)
+void VpnConnection::onTrafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                                     quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond)
 {
-    qDebug() << "VPN traffic speed update rx=" << receivedBytes << "tx=" << sentBytes;
-    emit bytesChanged(receivedBytes, sentBytes);
+    emit trafficUpdated(receivedDeltaBytes, sentDeltaBytes,
+                        receivedBytesPerSecond, sentBytesPerSecond);
 }
+
+#ifdef Q_OS_ANDROID
+void VpnConnection::onAndroidStatisticsUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                                               quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond,
+                                               quint64 sessionReceivedBytes, quint64 sessionSentBytes,
+                                               qint64 connectedSinceEpochMs)
+{
+    if (connectedSinceEpochMs <= 0) {
+        return;
+    }
+
+    if (m_androidConnectedSinceEpochMs != connectedSinceEpochMs) {
+        m_androidConnectedSinceEpochMs = connectedSinceEpochMs;
+        m_androidAccountedSessionRxBytes = 0;
+        m_androidAccountedSessionTxBytes = 0;
+    }
+
+    const quint64 rxDelta = sessionReceivedBytes >= m_androidAccountedSessionRxBytes
+        ? sessionReceivedBytes - m_androidAccountedSessionRxBytes : receivedDeltaBytes;
+    const quint64 txDelta = sessionSentBytes >= m_androidAccountedSessionTxBytes
+        ? sessionSentBytes - m_androidAccountedSessionTxBytes : sentDeltaBytes;
+    m_androidAccountedSessionRxBytes = sessionReceivedBytes;
+    m_androidAccountedSessionTxBytes = sessionSentBytes;
+
+    onTrafficUpdated(rxDelta, txDelta, receivedBytesPerSecond, sentBytesPerSecond);
+}
+#endif
 
 void VpnConnection::onKillSwitchModeChanged(bool enabled)
 {
@@ -351,7 +392,8 @@ void VpnConnection::createProtocolConnections()
 {
     connect(m_vpnProtocol.data(), &VpnProtocol::protocolError, this, &VpnConnection::vpnProtocolError);
     connect(m_vpnProtocol.data(), &VpnProtocol::connectionStateChanged, this, &VpnConnection::setConnectionState);
-    connect(m_vpnProtocol.data(), SIGNAL(bytesChanged(quint64, quint64)), this, SLOT(onBytesChanged(quint64, quint64)));
+    connect(m_vpnProtocol.data(), &VpnProtocol::trafficUpdated,
+            this, &VpnConnection::onTrafficUpdated);
 
 #ifdef AMNEZIA_DESKTOP
     IpcClient::withInterface([this](QSharedPointer<IpcInterfaceReplica> rep) {

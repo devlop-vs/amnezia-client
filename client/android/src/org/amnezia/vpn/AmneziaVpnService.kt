@@ -102,6 +102,9 @@ open class AmneziaVpnService : VpnService() {
     private var disconnectionJob: Job? = null
     private var trafficStatsUpdateJob: Job? = null
     private var lastTrafficSpeed = TrafficStats.TrafficData.ZERO
+    private var sessionRxBytes = 0L
+    private var sessionTxBytes = 0L
+    private var connectedSinceEpochMs = 0L
     // private var statisticsSendingJob: Job? = null
     private lateinit var networkState: NetworkState
     private lateinit var trafficStats: TrafficStats
@@ -345,11 +348,13 @@ open class AmneziaVpnService : VpnService() {
         if (serviceNotification.isNotificationEnabled()) {
             Log.d(TAG, "Register screen state broadcast receivers")
             screenOnReceiver = registerBroadcastReceiver(Intent.ACTION_SCREEN_ON) {
-                if (isConnected && serviceNotification.isNotificationEnabled()) startTrafficStatsUpdateJob()
+                if (isConnected && serviceNotification.isNotificationEnabled()) {
+                    serviceNotification.updateSpeed(lastTrafficSpeed)
+                }
             }
 
             screenOffReceiver = registerBroadcastReceiver(Intent.ACTION_SCREEN_OFF) {
-                stopTrafficStatsUpdateJob()
+                serviceNotification.updateSpeed(TrafficStats.TrafficData.ZERO)
             }
         }
     }
@@ -393,6 +398,11 @@ open class AmneziaVpnService : VpnService() {
                 when (protocolState) {
                     CONNECTED -> {
                         networkState.bindNetworkListener()
+                        if (connectedSinceEpochMs == 0L) {
+                            sessionRxBytes = 0L
+                            sessionTxBytes = 0L
+                            connectedSinceEpochMs = System.currentTimeMillis()
+                        }
                         launchTrafficStatsUpdate()
                     }
 
@@ -411,7 +421,14 @@ open class AmneziaVpnService : VpnService() {
                         stopTrafficStatsUpdateJob()
                     }
 
-                    CONNECTING, UNKNOWN -> {}
+                    CONNECTING -> {
+                        sessionRxBytes = 0L
+                        sessionTxBytes = 0L
+                        connectedSinceEpochMs = 0L
+                        lastTrafficSpeed = TrafficStats.TrafficData.ZERO
+                    }
+
+                    UNKNOWN -> {}
                 }
             }
         }
@@ -427,15 +444,12 @@ open class AmneziaVpnService : VpnService() {
     @MainThread
     private fun disableNotification() {
         unregisterScreenStateBroadcastReceivers()
-        stopTrafficStatsUpdateJob()
     }
 
     @MainThread
     private fun launchTrafficStatsUpdate() {
-        stopTrafficStatsUpdateJob()
-        if (isConnected &&
-            getSystemService<PowerManager>()?.isInteractive != false
-        ) {
+        if (trafficStatsUpdateJob != null) return
+        if (isConnected) {
             Log.v(TAG, "Launch traffic stats update")
             trafficStats.reset()
             startTrafficStatsUpdateJob()
@@ -448,11 +462,15 @@ open class AmneziaVpnService : VpnService() {
             Log.d(TAG, "Start traffic stats update")
             trafficStatsUpdateJob = mainScope.launch {
                 while (true) {
-                    trafficStats.getSpeed().let { speed ->
+                    trafficStats.getUpdate().let { update ->
                         if (isConnected) {
-                            lastTrafficSpeed = speed
-                            serviceNotification.updateSpeed(speed)
-                            sendStatisticsToClients(speed)
+                            sessionRxBytes += update.delta.rx
+                            sessionTxBytes += update.delta.tx
+                            lastTrafficSpeed = update.speed
+                            if (getSystemService<PowerManager>()?.isInteractive != false) {
+                                serviceNotification.updateSpeed(update.speed)
+                            }
+                            sendStatisticsToClients(update.delta, update.speed)
                         }
                     }
                     delay(TRAFFIC_STATS_UPDATE_TIMEOUT)
@@ -462,14 +480,28 @@ open class AmneziaVpnService : VpnService() {
     }
 
     @MainThread
-    private fun sendStatisticsToClient(clientMessenger: IpcMessenger, speed: TrafficStats.TrafficData = lastTrafficSpeed) {
-        Log.v(TAG, "Send traffic stats to '${clientMessenger.name}': rx=${speed.rx}, tx=${speed.tx}")
+    private fun sendStatisticsToClient(
+        clientMessenger: IpcMessenger,
+        delta: TrafficStats.TrafficData = TrafficStats.TrafficData.ZERO,
+        speed: TrafficStats.TrafficData = lastTrafficSpeed
+    ) {
+        Log.v(
+            TAG,
+            "Send traffic stats to '${clientMessenger.name}': " +
+                "deltaRx=${delta.rx}, deltaTx=${delta.tx}, " +
+                "sessionRx=$sessionRxBytes, sessionTx=$sessionTxBytes"
+        )
         clientMessenger.send {
             ServiceEvent.STATISTICS_UPDATE.packToMessage {
                 putStatistics(
                     Statistics.build {
-                        setRxBytes(speed.rx)
-                        setTxBytes(speed.tx)
+                        setRxBytes(delta.rx)
+                        setTxBytes(delta.tx)
+                        setRxBytesPerSecond(speed.rx)
+                        setTxBytesPerSecond(speed.tx)
+                        setSessionRxBytes(sessionRxBytes)
+                        setSessionTxBytes(sessionTxBytes)
+                        setConnectedSinceEpochMs(connectedSinceEpochMs)
                     }
                 )
             }
@@ -477,10 +509,13 @@ open class AmneziaVpnService : VpnService() {
     }
 
     @MainThread
-    private fun sendStatisticsToClients(speed: TrafficStats.TrafficData = lastTrafficSpeed) {
-        Log.v(TAG, "Send traffic stats to clients=${clientMessengers.size}: rx=${speed.rx}, tx=${speed.tx}")
+    private fun sendStatisticsToClients(
+        delta: TrafficStats.TrafficData = TrafficStats.TrafficData.ZERO,
+        speed: TrafficStats.TrafficData = lastTrafficSpeed
+    ) {
+        Log.v(TAG, "Send traffic stats to clients=${clientMessengers.size}")
         clientMessengers.values.forEach { clientMessenger ->
-            sendStatisticsToClient(clientMessenger, speed)
+            sendStatisticsToClient(clientMessenger, delta, speed)
         }
     }
 

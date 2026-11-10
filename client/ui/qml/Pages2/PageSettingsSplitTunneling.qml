@@ -15,10 +15,17 @@ import "./"
 import "../Controls2"
 import "../Controls2/TextTypes"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Components"
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     property var isServerFromTelegramApi: ServersUiController.isServerFromApi(ServersUiController.defaultServerId)
     
@@ -91,12 +98,17 @@ PageType {
 
         BackButtonType {
             id: backButton
+            backButtonImageColor: RedaVia.Theme.textPrimary
         }
 
         HeaderTypeWithSwitcher {
             Layout.fillWidth: true
             Layout.leftMargin: 16
             Layout.rightMargin: 16
+
+            fontFamily: RedaVia.Theme.fontFamily
+            headerTextColor: RedaVia.Theme.textPrimary
+            descriptionTextColor: RedaVia.Theme.textSecondary
 
             headerText: qsTr("Split tunneling")
 
@@ -114,6 +126,22 @@ PageType {
 
         DropDownType {
             id: selector
+            fontFamily: RedaVia.Theme.fontFamily
+            headerTextColor: RedaVia.Theme.textPrimary
+            drawerBackgroundColor: RedaVia.Theme.background
+            drawerBorderColor: RedaVia.Theme.borderColor
+            backButtonImageColor: RedaVia.Theme.textPrimary
+            textColor: RedaVia.Theme.textPrimary
+            textDisabledColor: RedaVia.Theme.textSecondary
+            descriptionTextColor: RedaVia.Theme.textSecondary
+            rootButtonImageColor: RedaVia.Theme.textPrimary
+            rootButtonBackgroundColor: RedaVia.Theme.cardBackground
+            rootButtonBackgroundHoveredColor: RedaVia.Theme.cardBackgroundAlt
+            rootButtonBackgroundPressedColor: RedaVia.Theme.cardBackgroundAlt
+            rootButtonDefaultBorderColor: RedaVia.Theme.borderColor
+            rootButtonHoveredBorderColor: RedaVia.Theme.primaryGreen
+            rootButtonPressedBorderColor: RedaVia.Theme.primaryGreen
+            borderFocusedColor: RedaVia.Theme.primaryGreen
 
             Layout.fillWidth: true
             Layout.topMargin: 32
@@ -124,11 +152,15 @@ PageType {
             drawerParent: root
 
             enabled: root.pageEnabled
-
             headerText: qsTr("Mode")
 
             listView: ListViewWithRadioButtonType {
                 rootWidth: root.width
+                fontFamily: RedaVia.Theme.fontFamily
+                textColor: RedaVia.Theme.textPrimary
+                defaultColor: RedaVia.Theme.background
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                focusedBorderColor: RedaVia.Theme.primaryGreen
 
                 model: root.routeModesModel
 
@@ -200,11 +232,22 @@ PageType {
             LabelWithButtonType {
                 id: site
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
 
                 text: url
                 descriptionText: ip
                 rightImageSource: "qrc:/images/controls/trash.svg"
-                rightImageColor: AmneziaStyle.color.paleGray
 
                 clickedFunction: function() {
                     var headerText = qsTr("Remove ") + url + "?"
@@ -227,7 +270,7 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
         }
     }
 
@@ -238,7 +281,7 @@ PageType {
         
         height: addSiteButton.implicitHeight + 48
         
-        color: AmneziaStyle.color.midnightBlack
+        color: RedaVia.Theme.background
         
         RowLayout {
             id: addSiteButton
@@ -254,6 +297,16 @@ PageType {
             anchors.bottomMargin: 24
 
             TextFieldWithHeaderType {
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textSecondary
+                textFieldTextColor: RedaVia.Theme.textPrimary
+                textFieldPlaceholderTextColor: RedaVia.Theme.textPlaceholder
+                borderColor: RedaVia.Theme.borderColor
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                backgroundColor: RedaVia.Theme.cardBackground
+                backgroundDisabledColor: RedaVia.Theme.cardBackground
+                bgBorderHoveredColor: RedaVia.Theme.cardBackgroundAlt
+                backgroundRadius: RedaVia.Theme.inputRadius
                 id: searchField
 
                 Layout.fillWidth: true
@@ -276,7 +329,7 @@ PageType {
                 implicitHeight: 56
 
                 image: "qrc:/images/controls/more-vertical.svg"
-                imageColor: AmneziaStyle.color.paleGray
+                imageColor: RedaVia.Theme.textPrimary
 
                 onClicked: function () {
                     moreActionsDrawer.openTriggered()
@@ -293,6 +346,8 @@ PageType {
 
         anchors.fill: parent
         expandedHeight: parent.height * 0.4375
+        defaultColor: RedaVia.Theme.background
+        borderColor: RedaVia.Theme.borderColor
 
         expandedStateContent: ColumnLayout {
             id: moreActionsDrawerContent
@@ -305,12 +360,25 @@ PageType {
                 Layout.fillWidth: true
                 Layout.margins: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
                 headerText: qsTr("Additional options")
             }
 
             LabelWithButtonType {
                 id: importSitesButton
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                rightImageColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Import")
                 rightImageSource: "qrc:/images/controls/chevron-right.svg"
@@ -320,11 +388,21 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
             LabelWithButtonType {
                 id: exportSitesButton
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+
                 text: qsTr("Save site list")
 
                 clickedFunction: function() {
@@ -347,11 +425,20 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
             
             LabelWithButtonType {
                 id: clearSitesButton
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
 
                 text: qsTr("Clear site list")
 
@@ -374,7 +461,7 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
         }
     }
 
@@ -383,12 +470,15 @@ PageType {
 
         anchors.fill: parent
         expandedHeight: parent.height * 0.4375
+        defaultColor: RedaVia.Theme.background
+        borderColor: RedaVia.Theme.borderColor
 
         expandedStateContent: Item {
             implicitHeight: importSitesDrawer.expandedHeight
 
             BackButtonType {
                 id: importSitesDrawerBackButton
+                backButtonImageColor: RedaVia.Theme.textPrimary
 
                 anchors.top: parent.top
                 anchors.left: parent.left
@@ -421,6 +511,9 @@ PageType {
                         Layout.fillWidth: true
                         Layout.margins: 16
 
+                        fontFamily: RedaVia.Theme.fontFamily
+                        headerTextColor: RedaVia.Theme.textPrimary
+                        descriptionTextColor: RedaVia.Theme.textSecondary
                         headerText: qsTr("Import a list of sites")
                     }
                 }
@@ -435,6 +528,13 @@ PageType {
                         Layout.leftMargin: 16
                         Layout.rightMargin: 16
 
+                        fontFamily: RedaVia.Theme.fontFamily
+                        cardColor: RedaVia.Theme.cardBackground
+                        cardBorderColor: RedaVia.Theme.borderColor
+                        cardBorderWidth: 1
+                        cardRadius: RedaVia.Theme.buttonRadius
+                        textColor: RedaVia.Theme.textPrimary
+
                         text: title
 
                         clickedFunction: function() {
@@ -442,7 +542,7 @@ PageType {
                         }
                     }
 
-                    DividerType {}
+                    DividerType { visible: false }
                 }
             }
         }

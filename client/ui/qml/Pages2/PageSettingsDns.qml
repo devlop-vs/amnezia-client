@@ -8,11 +8,18 @@ import Style 1.0
 import "./"
 import "../Controls2"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Controls2/TextTypes"
 import "../Components"
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     BackButtonType {
         id: backButton
@@ -21,6 +28,7 @@ PageType {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 20 + PageController.safeAreaTopMargin
+        backButtonImageColor: RedaVia.Theme.textPrimary
 
         onFocusChanged: {
             if (this.activeFocus) {
@@ -56,10 +64,15 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
                 headerText: qsTr("DNS servers")
             }
 
             ParagraphTextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textSecondary
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
@@ -75,6 +88,16 @@ PageType {
             spacing: 16
 
             TextFieldWithHeaderType {
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                textFieldTextColor: RedaVia.Theme.textPrimary
+                textFieldPlaceholderTextColor: RedaVia.Theme.textPlaceholder
+                borderColor: RedaVia.Theme.borderColor
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                backgroundColor: RedaVia.Theme.cardBackground
+                backgroundDisabledColor: RedaVia.Theme.cardBackground
+                bgBorderHoveredColor: RedaVia.Theme.cardBackgroundAlt
+                backgroundRadius: RedaVia.Theme.inputRadius
                 id: primaryDns
 
                 Layout.fillWidth: true
@@ -90,6 +113,16 @@ PageType {
             }
 
             TextFieldWithHeaderType {
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                textFieldTextColor: RedaVia.Theme.textPrimary
+                textFieldPlaceholderTextColor: RedaVia.Theme.textPlaceholder
+                borderColor: RedaVia.Theme.borderColor
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                backgroundColor: RedaVia.Theme.cardBackground
+                backgroundDisabledColor: RedaVia.Theme.cardBackground
+                bgBorderHoveredColor: RedaVia.Theme.cardBackgroundAlt
+                backgroundRadius: RedaVia.Theme.inputRadius
                 id: secondaryDns
 
                 Layout.fillWidth: true
@@ -105,6 +138,10 @@ PageType {
             }
 
             BasicButtonType {
+                fontFamily: RedaVia.Theme.fontFamily
+                borderColor: RedaVia.Theme.primaryGreen
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                buttonRadius: RedaVia.Theme.buttonRadius
                 id: restoreDefaultButton
 
                 Layout.fillWidth: true
@@ -112,11 +149,11 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
-                defaultColor: AmneziaStyle.color.transparent
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                disabledColor: AmneziaStyle.color.mutedGray
-                textColor: AmneziaStyle.color.paleGray
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.connectedInner
+                disabledColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.textPrimary
                 borderWidth: 1
 
                 text: qsTr("Restore default")
@@ -141,6 +178,15 @@ PageType {
             }
 
             BasicButtonType {
+                fontFamily: RedaVia.Theme.fontFamily
+                defaultColor: RedaVia.Theme.primaryGreen
+                hoveredColor: RedaVia.Theme.primaryGreen
+                pressedColor: RedaVia.Theme.connectedInner
+                disabledColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.background
+                borderColor: RedaVia.Theme.primaryGreen
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                buttonRadius: RedaVia.Theme.buttonRadius
                 id: saveButton
 
                 Layout.fillWidth: true

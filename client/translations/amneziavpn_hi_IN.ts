@@ -4843,4 +4843,324 @@ While it offers a blend of security, stability, and speed, it&apos;s essential t
         <translation>सहेजें</translation>
     </message>
 </context>
+<context>
+    <name>HomeConnected</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='17'/>
+        <source>United Kingdom</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='97'/>
+        <source>Selected location</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='171'/>
+        <source>Connected</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='203'/>
+        <source>Ping</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='204'/>
+        <source>Protocol</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeConnected.qml' line='205'/>
+        <source>Duration</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>HomeDisconnected</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeDisconnected.qml' line='21'/>
+        <source>United Kingdom</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeDisconnected.qml' line='75'/>
+        <source>Connecting Time</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeDisconnected.qml' line='123'/>
+        <source>Subscribe to RedaVPN — Choose Plan</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeDisconnected.qml' line='145'/>
+        <source>Select location</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>HomeNetworkStats</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeNetworkStats.qml' line='26'/>
+        <source>🌐  VPN-Protected Network Stats</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeNetworkStats.qml' line='39'/>
+        <source>Protected Duration Today</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeNetworkStats.qml' line='40'/>
+        <source>Protected Volume Today</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeNetworkStats.qml' line='41'/>
+        <source>Protected Duration This Month</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/HomeNetworkStats.qml' line='42'/>
+        <source>Protected Volume This Month</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>LocationsPage</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='16'/>
+        <source>Country/Region</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='17'/>
+        <source>Quick</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='18'/>
+        <source>General</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='19'/>
+        <source>Obfuscated VPN</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='164'/>
+        <source>Unable to switch to this location</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='168'/>
+        <source>Unable change server location while trying to make an active connection</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='172'/>
+        <source>Unable change server location while there is an active connection</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='184'/>
+        <source>Current VPN configuration does not support location switching</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='271'/>
+        <source>Search for country or city</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='359'/>
+        <source>
+            Obfuscated servers hide common signs of VPN usage, allowing you to
+            connect to a VPN on restricted networks of some countries or
+            regions.
+        </source>
+        <translation type='unfinished'/>
+    </message>
+    <message numerus='yes'>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='441'/>
+        <source>%n Location(s)</source>
+        <translation type='unfinished'>
+            <numerusform/>
+        </translation>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LocationsPage.qml' line='558'/>
+        <source>Default</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>LoginPage</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='24'/>
+        <source>Reda VPN</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='33'/>
+        <source>Welcome back</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='43'/>
+        <source>EMAIL</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='76'/>
+        <source>name@example.com</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='88'/>
+        <source>PASSWORD</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='122'/>
+        <source>••••••••</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='135'/>
+        <source>Forgot password?</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/LoginPage.qml' line='151'/>
+        <source>Sign in</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>OnboardingPage</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/OnboardingPage.qml' line='61'/>
+        <source>Private by default</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/OnboardingPage.qml' line='77'/>
+        <source>Secure your connection with one tap and browse without limits.</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/OnboardingPage.qml' line='94'/>
+        <source>Get started</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>Onboarding_slide_1</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_1.qml' line='96'/>
+        <source>What is VPN?</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_1.qml' line='107'/>
+        <source>Browse more securely with one click!</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_1.qml' line='120'/>
+        <source>
+            A VPN improves your online privacy, keeping your online activities
+            safe from prying eyes and making it safer to use public Wi-Fi.
+        </source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_1.qml' line='144'/>
+        <source>Next</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>Onboarding_slide_2</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_2.qml' line='96'/>
+        <source>Advanced Security</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_2.qml' line='107'/>
+        <source>No need to think twice!</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_2.qml' line='120'/>
+        <source>
+            RedaVPN will automatically block dangerous websites, prevent
+            malicious ads from loading, and notify you immediately if your
+            password is leaked.
+        </source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_2.qml' line='144'/>
+        <source>Next</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>Onboarding_slide_3</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_3.qml' line='104'/>
+        <source>Trustworthy Protection</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_3.qml' line='117'/>
+        <source>
+            RedaVPN provides trustworthy security protection for ordinary users,
+            technology enthusiasts, and industry experts. Join a global
+            community that puts digital freedom and security first.
+        </source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_3.qml' line='143'/>
+        <source>Sign Up</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_3.qml' line='166'/>
+        <source>Sign In</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/Onboarding_slide_3.qml' line='184'/>
+        <source>Subscription and Privacy Information</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>SpeedStats</name>
+    <message>
+        <location filename='../ui/qml/RedaVia/SpeedStats.qml' line='19'/>
+        <source>↓  Download</source>
+        <translation type='unfinished'/>
+    </message>
+    <message>
+        <location filename='../ui/qml/RedaVia/SpeedStats.qml' line='45'/>
+        <source>↑  Upload</source>
+        <translation type='unfinished'/>
+    </message>
+</context>
+<context>
+    <name>CountryName</name>
+    <message><source>Germany</source><translation>जर्मनी</translation></message>
+    <message><source>United States</source><translation>संयुक्त राज्य अमेरिका</translation></message>
+    <message><source>France</source><translation>फ़्रांस</translation></message>
+    <message><source>Japan</source><translation>जापान</translation></message>
+    <message><source>Singapore</source><translation>सिंगापुर</translation></message>
+</context>
 </TS>

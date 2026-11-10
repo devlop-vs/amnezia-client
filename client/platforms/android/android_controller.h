@@ -73,7 +73,10 @@ signals:
     void vpnPermissionRejected();
     void notificationStateChanged();
     void vpnStateChanged(ConnectionState state);
-    void statisticsUpdated(quint64 rxBytes, quint64 txBytes);
+    void statisticsUpdated(quint64 rxDeltaBytes, quint64 txDeltaBytes,
+                           quint64 rxBytesPerSecond, quint64 txBytesPerSecond,
+                           quint64 sessionRxBytes, quint64 sessionTxBytes,
+                           qint64 connectedSinceEpochMs);
     void fileOpened(QString uri);
     void configImported(QString config);
     void importConfigFromOutside(QString config);
@@ -114,7 +117,11 @@ private:
     static void onVpnPermissionRejected(JNIEnv *env, jobject thiz);
     static void onNotificationStateChanged(JNIEnv *env, jobject thiz);
     static void onVpnStateChanged(JNIEnv *env, jobject thiz, jint stateCode);
-    static void onStatisticsUpdate(JNIEnv *env, jobject thiz, jlong rxBytes, jlong txBytes);
+    static void onStatisticsUpdate(JNIEnv *env, jobject thiz,
+                                   jlong rxDeltaBytes, jlong txDeltaBytes,
+                                   jlong rxBytesPerSecond, jlong txBytesPerSecond,
+                                   jlong sessionRxBytes, jlong sessionTxBytes,
+                                   jlong connectedSinceEpochMs);
     static void onConfigImported(JNIEnv *env, jobject thiz, jstring data);
     static void onFileOpened(JNIEnv *env, jobject thiz, jstring uri);
     static void onAuthResult(JNIEnv *env, jobject thiz, jboolean result);

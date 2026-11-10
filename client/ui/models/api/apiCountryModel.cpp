@@ -1,9 +1,12 @@
 #include "apiCountryModel.h"
 
+#include <QCoreApplication>
+#include <QHash>
 #include <QJsonObject>
 #include <QLocale>
 #include <QStringList>
 
+#include "core/utils/api/apiTextUtils.h"
 #include "core/utils/serverConfigUtils.h"
 #include "core/utils/constants/apiKeys.h"
 #include "core/utils/constants/apiConstants.h"
@@ -70,6 +73,31 @@ namespace
         return result;
     }
 
+    QString localizedCountryName(const QString &countryCode)
+    {
+        static const QHash<QString, const char *> countryNames {
+            { QStringLiteral("DE"), QT_TRANSLATE_NOOP("CountryName", "Germany") },
+            { QStringLiteral("US"), QT_TRANSLATE_NOOP("CountryName", "United States") },
+            { QStringLiteral("FR"), QT_TRANSLATE_NOOP("CountryName", "France") },
+            { QStringLiteral("JP"), QT_TRANSLATE_NOOP("CountryName", "Japan") },
+            { QStringLiteral("SG"), QT_TRANSLATE_NOOP("CountryName", "Singapore") },
+        };
+
+        const QString normalizedCountryCode = countryCode.trimmed().toUpper();
+        const auto countryName = countryNames.constFind(normalizedCountryCode);
+        if (countryName != countryNames.constEnd()) {
+            return QCoreApplication::translate("CountryName", countryName.value());
+        }
+
+        const QLocale::Territory territory = QLocale::codeToTerritory(normalizedCountryCode);
+        return territory == QLocale::AnyTerritory ? QString() : QLocale::territoryToString(territory);
+    }
+
+    QString localizedCityName(const QString &cityCode, const QString &fallbackName = QString())
+    {
+        return apiTextUtils::translateCity(cityCode, fallbackName);
+    }
+
     QString countryNameToCode(const QString &countryName)
     {
         const QString normalizedCountryName = countryName.trimmed();
@@ -87,18 +115,22 @@ namespace
         return {};
     }
 
-    void addCity(CountryInfo &countryInfo, const QString &cityName, const QString &cityRequestName)
+    void addCity(CountryInfo &countryInfo, const QString &cityName, const QString &cityRequestName,
+                 const QString &cityFallbackName = QString())
     {
         const QString normalizedCityName = cityName.trimmed();
         const QString normalizedCityRequestName = cityRequestName.trimmed();
         if (normalizedCityName.isEmpty()) {
             return;
         }
-        if (countryInfo.cityNames.contains(normalizedCityName)) {
+        if ((!normalizedCityRequestName.isEmpty() && countryInfo.cityRequestNames.contains(normalizedCityRequestName))
+            || (normalizedCityRequestName.isEmpty() && countryInfo.cityNames.contains(normalizedCityName))) {
             return;
         }
         countryInfo.cityNames.push_back(normalizedCityName);
         countryInfo.cityRequestNames.push_back(normalizedCityRequestName);
+        countryInfo.cityFallbackNames.push_back(cityFallbackName.trimmed());
+        countryInfo.cityQualities.push_back({});
     }
 
     void mergeProtocols(CountryInfo &countryInfo, const QStringList &protocols)
@@ -124,19 +156,37 @@ namespace
     {
         CountryInfo countryInfo;
 
-        const QString countryCode = countryObject.value(apiDefs::key::serverCountryCode).toString().trimmed().toUpper();
+        QString countryCode = countryObject.value(apiDefs::key::countryCode).toString().trimmed().toUpper();
+        if (countryCode.isEmpty()) {
+            countryCode = countryObject.value(apiDefs::key::serverCountryCode).toString().trimmed().toUpper();
+        }
+
         QString countryName = countryObject.value(apiDefs::key::serverCountryName).toString().trimmed();
-        if (countryName.isEmpty()) {
-            countryName = QLocale::territoryToString(QLocale::codeToTerritory(countryCode));
+        if (!countryCode.isEmpty()) {
+            const QString displayName = localizedCountryName(countryCode);
+            if (!displayName.isEmpty()) {
+                countryName = displayName;
+            }
+        }
+
+        QString cityCode = countryObject.value(apiDefs::key::cityCode).toString().trimmed();
+        if (cityCode.isEmpty()) {
+            cityCode = countryObject.value(apiDefs::key::serverCityCode).toString().trimmed();
         }
 
         const QString serverCityName = countryObject.value(apiDefs::key::serverCityName).toString().trimmed();
+        const bool hasCityCode = !cityCode.isEmpty();
+
+        QString cityName = serverCityName;
+        if (hasCityCode) {
+            cityName = localizedCityName(cityCode, serverCityName);
+        }
 
         countryInfo.countryName = countryName;
         countryInfo.countryCode = countryCode;
         countryInfo.defaultCountryCode = countryCode;
         countryInfo.supportedProtocols = countryProtocols(countryObject);
-        addCity(countryInfo, serverCityName.isEmpty() ? QStringLiteral("Default") : serverCityName, serverCityName);
+        addCity(countryInfo, cityName.isEmpty() ? QStringLiteral("Default") : cityName, cityCode, serverCityName);
 
         return countryInfo;
     }
@@ -189,8 +239,43 @@ QVariant ApiCountryModel::data(const QModelIndex &index, int role) const
     case CityRequestNamesRole: {
         return countryInfo.cityRequestNames;
     }
+    case CityFallbackNamesRole: {
+        return countryInfo.cityFallbackNames;
+    }
     case CityCountRole: {
         return countryInfo.cityNames.size();
+    }
+    case CountryLatencyMsRole: {
+        return countryInfo.cityQualities.value(0).latencyMs;
+    }
+    case CountryLatencyTextRole: {
+        const int latencyMs = countryInfo.cityQualities.value(0).latencyMs;
+        return latencyMs >= 0 ? QStringLiteral("%1 ms").arg(latencyMs) : QStringLiteral("-- ms");
+    }
+    case CountrySignalBarsRole: {
+        return countryInfo.cityQualities.value(0).signalBars;
+    }
+    case CountryQualityStatusRole: {
+        return countryInfo.cityQualities.value(0).status;
+    }
+    case CountryQualityLabelRole: {
+        return countryInfo.cityQualities.value(0).label;
+    }
+    case CityQualitiesRole: {
+        QVariantList result;
+        result.reserve(countryInfo.cityQualities.size());
+        for (const NodeQuality &quality : countryInfo.cityQualities) {
+            QVariantMap item;
+            item.insert(QStringLiteral("latencyMs"), quality.latencyMs);
+            item.insert(QStringLiteral("latencyText"), quality.latencyMs >= 0
+                        ? QStringLiteral("%1 ms").arg(quality.latencyMs) : QStringLiteral("-- ms"));
+            item.insert(QStringLiteral("signalBars"), quality.signalBars);
+            item.insert(QStringLiteral("score"), quality.score);
+            item.insert(QStringLiteral("status"), quality.status);
+            item.insert(QStringLiteral("label"), quality.label);
+            result.append(item);
+        }
+        return result;
     }
     }
 
@@ -223,7 +308,7 @@ void ApiCountryModel::updateModel(const QJsonArray &countries, const QString &cu
             countryInfo.defaultCountryCode = countryInfo.countryCode;
         }
         if (countryInfo.countryName.isEmpty() && !countryInfo.countryCode.isEmpty()) {
-            countryInfo.countryName = QLocale::territoryToString(QLocale::codeToTerritory(countryInfo.countryCode));
+            countryInfo.countryName = localizedCountryName(countryInfo.countryCode);
         }
         if (countryInfo.countryCode.isEmpty()) {
             qWarning().noquote() << "[ApiCountryModel] Skip country without server_country_code:" << countryValue;
@@ -237,7 +322,8 @@ void ApiCountryModel::updateModel(const QJsonArray &countries, const QString &cu
         if (existingIndex >= 0) {
             CountryInfo &existingCountryInfo = m_countries[existingIndex];
             for (int cityIndex = 0; cityIndex < countryInfo.cityNames.size(); ++cityIndex) {
-                addCity(existingCountryInfo, countryInfo.cityNames.value(cityIndex), countryInfo.cityRequestNames.value(cityIndex));
+                addCity(existingCountryInfo, countryInfo.cityNames.value(cityIndex), countryInfo.cityRequestNames.value(cityIndex),
+                        countryInfo.cityFallbackNames.value(cityIndex));
             }
             mergeProtocols(existingCountryInfo, countryInfo.supportedProtocols);
         } else {
@@ -257,6 +343,75 @@ void ApiCountryModel::updateModel(const QJsonArray &countries, const QString &cu
     endResetModel();
 
     emit currentIndexChanged(m_currentIndex);
+}
+
+void ApiCountryModel::refreshTranslations()
+{
+    if (m_countries.isEmpty()) {
+        return;
+    }
+
+    for (CountryInfo &countryInfo : m_countries) {
+        const QString countryName = localizedCountryName(countryInfo.countryCode);
+        if (!countryName.isEmpty()) {
+            countryInfo.countryName = countryName;
+        }
+
+        for (qsizetype cityIndex = 0; cityIndex < countryInfo.cityRequestNames.size(); ++cityIndex) {
+            const QString cityCode = countryInfo.cityRequestNames.at(cityIndex);
+            if (!cityCode.isEmpty()) {
+                countryInfo.cityNames[cityIndex] = localizedCityName(cityCode, countryInfo.cityFallbackNames.value(cityIndex));
+            }
+        }
+    }
+
+    emit dataChanged(index(0, 0), index(m_countries.size() - 1, 0),
+                     { CountryNameRole, CityNamesRole });
+}
+
+void ApiCountryModel::resetNodeQualities()
+{
+    if (m_countries.isEmpty()) {
+        return;
+    }
+    for (CountryInfo &country : m_countries) {
+        for (NodeQuality &quality : country.cityQualities) {
+            quality = {};
+        }
+    }
+    emit dataChanged(index(0, 0), index(m_countries.size() - 1, 0),
+                     { CountryLatencyMsRole, CountryLatencyTextRole, CountrySignalBarsRole,
+                       CountryQualityStatusRole, CountryQualityLabelRole, CityQualitiesRole });
+}
+
+void ApiCountryModel::setNodeQuality(const QString &countryCode, const QString &cityCode, int latencyMs,
+                                     int signalBars, int score, const QString &status, const QString &label)
+{
+    const QString normalizedCountry = countryCode.trimmed().toUpper();
+    const QString normalizedCity = cityCode.trimmed();
+    for (int countryIndex = 0; countryIndex < m_countries.size(); ++countryIndex) {
+        CountryInfo &country = m_countries[countryIndex];
+        if (country.countryCode != normalizedCountry) {
+            continue;
+        }
+        int cityIndex = country.cityRequestNames.indexOf(normalizedCity);
+        if (cityIndex < 0 && country.cityRequestNames.size() == 1) {
+            cityIndex = 0;
+        }
+        if (cityIndex < 0 || cityIndex >= country.cityQualities.size()) {
+            return;
+        }
+        NodeQuality &quality = country.cityQualities[cityIndex];
+        quality.latencyMs = latencyMs;
+        quality.signalBars = qBound(0, signalBars, 4);
+        quality.score = score;
+        quality.status = status.trimmed().toLower();
+        quality.label = label;
+        emit dataChanged(index(countryIndex, 0), index(countryIndex, 0),
+                         { CountryLatencyMsRole, CountryLatencyTextRole, CountrySignalBarsRole,
+                           CountryQualityStatusRole, CountryQualityLabelRole, CityQualitiesRole });
+        return;
+    }
 }
 
 void ApiCountryModel::updateIssuedConfigsInfo(const QJsonArray &issuedConfigs)
@@ -328,6 +483,13 @@ QHash<int, QByteArray> ApiCountryModel::roleNames() const
     roles[SupportedProtocolsRole] = "supportedProtocols";
     roles[CityNamesRole] = "cityNames";
     roles[CityRequestNamesRole] = "cityRequestNames";
+    roles[CityFallbackNamesRole] = "cityFallbackNames";
     roles[CityCountRole] = "cityCount";
+    roles[CountryLatencyMsRole] = "countryLatencyMs";
+    roles[CountryLatencyTextRole] = "countryLatencyText";
+    roles[CountrySignalBarsRole] = "countrySignalBars";
+    roles[CountryQualityStatusRole] = "countryQualityStatus";
+    roles[CountryQualityLabelRole] = "countryQualityLabel";
+    roles[CityQualitiesRole] = "cityQualities";
     return roles;
 }

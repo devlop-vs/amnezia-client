@@ -115,5 +115,5 @@ Rectangle {
         Item { Layout.fillHeight: true }
     }
 
-    BottomTabBar { currentIndex: 0 }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

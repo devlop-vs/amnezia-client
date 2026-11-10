@@ -106,7 +106,7 @@ bool AndroidController::initialize()
         {"onVpnPermissionRejected", "()V", reinterpret_cast<void *>(onVpnPermissionRejected)},
         {"onNotificationStateChanged", "()V", reinterpret_cast<void *>(onNotificationStateChanged)},
         {"onVpnStateChanged", "(I)V", reinterpret_cast<void *>(onVpnStateChanged)},
-        {"onStatisticsUpdate", "(JJ)V", reinterpret_cast<void *>(onStatisticsUpdate)},
+        { "onStatisticsUpdate", "(JJJJJJJ)V", reinterpret_cast<void *>(onStatisticsUpdate) },
         {"onFileOpened", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onFileOpened)},
         {"onConfigImported", "(Ljava/lang/String;)V", reinterpret_cast<void *>(onConfigImported)},
         {"onAuthResult", "(Z)V", reinterpret_cast<void *>(onAuthResult)},
@@ -601,13 +601,20 @@ void AndroidController::onVpnStateChanged(JNIEnv *env, jobject thiz, jint stateC
 }
 
 // static
-void AndroidController::onStatisticsUpdate(JNIEnv *env, jobject thiz, jlong rxBytes, jlong txBytes)
+void AndroidController::onStatisticsUpdate(JNIEnv *env, jobject thiz,
+                                           jlong rxDeltaBytes, jlong txDeltaBytes,
+                                           jlong rxBytesPerSecond, jlong txBytesPerSecond,
+                                           jlong sessionRxBytes, jlong sessionTxBytes,
+                                           jlong connectedSinceEpochMs)
 {
     Q_UNUSED(env);
     Q_UNUSED(thiz);
 
-    qDebug() << "Android event: statistics update rx=" << rxBytes << "tx=" << txBytes;
-    emit AndroidController::instance()->statisticsUpdated((quint64) rxBytes, (quint64) txBytes);
+    emit AndroidController::instance()->statisticsUpdated(
+        static_cast<quint64>(rxDeltaBytes), static_cast<quint64>(txDeltaBytes),
+        static_cast<quint64>(rxBytesPerSecond), static_cast<quint64>(txBytesPerSecond),
+        static_cast<quint64>(sessionRxBytes), static_cast<quint64>(sessionTxBytes),
+        connectedSinceEpochMs);
 }
 
 // static

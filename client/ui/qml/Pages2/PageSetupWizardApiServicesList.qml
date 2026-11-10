@@ -58,7 +58,7 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.bottomMargin: 24
 
-                headerText: qsTr("VPN by RedaVia")
+                headerText: qsTr("VPN by Reda")
                 descriptionText: qsTr("Choose a VPN service that suits your needs.")
                 fontFamily: RedaVia.Theme.fontFamily
             }

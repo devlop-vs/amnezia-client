@@ -62,6 +62,7 @@ Item {
     }
 
     signal subscriptionRequested()
+    signal locationsRequested()
 
     Component.onCompleted: {
         root.refreshCurrentServer()
@@ -124,9 +125,7 @@ Item {
         onConnectPressed: {
             ConnectionController.connectButtonClicked()
         }
-        onServerChangeRequested: {
-            locationsLoader.active = true
-        }
+        onServerChangeRequested: root.locationsRequested()
         onSubscriptionRequested: root.subscriptionRequested()
     }
 
@@ -143,20 +142,4 @@ Item {
         }
     }
 
-    Loader {
-        id: locationsLoader
-        anchors.fill: parent
-        active: false
-        source: "../RedaVia/LocationsPage.qml"
-
-        Connections {
-            target: locationsLoader.item
-            function onServerSelected(countryCode, countryName, protocolName) {
-                root.currentCountryCode = countryCode
-                root.currentCountryName = countryName
-                root.currentProtocolName = protocolName
-                locationsLoader.active = false
-            }
-        }
-    }
 }

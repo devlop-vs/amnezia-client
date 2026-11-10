@@ -43,6 +43,35 @@ public:
         QString xrayUuid;
     };
 
+    struct TextLocalizationResult
+    {
+        QString language;
+        QString version;
+        QJsonObject texts;
+    };
+
+    struct CityLocalizationResult
+    {
+        QString language;
+        QString version;
+        QJsonObject cities;
+    };
+
+    struct NodeHealthInfo
+    {
+        QString nodeId;
+        QString countryCode;
+        QString cityCode;
+        QString protocol;
+        QString serverStatus;
+        int serverLoadScore = -1;
+        QString capacityStatus;
+        QString updatedAt;
+        QString probeHost;
+        quint16 probePort = 0;
+        QString probeType;
+    };
+
     struct GatewayRequestData
     {
         QString osVersion;
@@ -55,6 +84,7 @@ public:
         QString serviceType;
         QString serviceProtocol;
         QJsonObject authData;
+        QString serverCityCode;
 
         QJsonObject toJsonObject() const;
     };
@@ -94,9 +124,9 @@ public:
                                           int *duplicateServerIndex = nullptr);
 
     ErrorCode updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent,
-                                       const QString &newCityName = QString(),
+                                       const QString &newCityCode = QString(),
                                        const QString &serviceProtocolOverride = QString(), bool resetClientIdentity = false,
-                                       const QString &newCountryName = QString());
+                                       const QString &newCountryName = QString(), const QString &newCityName = QString());
 
     ErrorCode resetServiceClientIdentity(const QString &serverId, QString *serverMessage = nullptr);
 
@@ -124,6 +154,13 @@ public:
 
     ErrorCode getAccountInfo(const QString &serverId, QJsonObject &accountInfo);
     ErrorCode getAccountInfoByEmail(const QString &email, AccountLookupResult &result);
+    TextLocalizationResult cachedTextLocalizations() const;
+    bool shouldRefreshTextLocalizations() const;
+    QFuture<QPair<ErrorCode, TextLocalizationResult>> getTextLocalizations();
+    CityLocalizationResult cachedCityLocalizations() const;
+    bool shouldRefreshCityLocalizations() const;
+    QFuture<QPair<ErrorCode, CityLocalizationResult>> getCityLocalizations();
+    QFuture<QPair<ErrorCode, QList<NodeHealthInfo>>> getNodeHealthQuality(const QString &serverId);
     QFuture<QPair<ErrorCode, QString>> getRenewalLink(const QString &serverId);
 
     struct AppStoreRestoreResult
@@ -170,7 +207,8 @@ private:
     void updateApiConfigInJson(QJsonObject &serverConfigJson, const QString &serviceType,
                                 const QString &serviceProtocol, const QString &userCountryCode,
                                 const QByteArray &apiResponseBody, const QString &serverCountryCode = QString(),
-                                const QString &serverCountryName = QString());
+                                const QString &serverCountryName = QString(), const QString &serverCityCode = QString(),
+                                const QString &serverCityName = QString(), const QString &existingEndpointUid = QString());
 
     SecureServersRepository* m_serversRepository;
     SecureAppSettingsRepository* m_appSettingsRepository;

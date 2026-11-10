@@ -10,9 +10,13 @@ import "../Controls2"
 import "../Controls2/TextTypes"
 
 import "../Config"
+import "../RedaVia" as RedaVia
 
 DrawerType2 {
     id: root
+
+    defaultColor: RedaVia.Theme.background
+    borderColor: RedaVia.Theme.borderColor
 
     property string headerText
     property string descriptionText
@@ -42,6 +46,8 @@ DrawerType2 {
             Layout.leftMargin: 16
 
             text: root.headerText
+            color: RedaVia.Theme.textPrimary
+            font.family: RedaVia.Theme.fontFamily
         }
 
         ParagraphTextType {
@@ -51,6 +57,8 @@ DrawerType2 {
             Layout.leftMargin: 16
 
             text: root.descriptionText
+            color: RedaVia.Theme.textSecondary
+            font.family: RedaVia.Theme.fontFamily
         }
 
         BasicButtonType {
@@ -59,6 +67,16 @@ DrawerType2 {
             Layout.topMargin: 16
             Layout.rightMargin: 16
             Layout.leftMargin: 16
+
+            fontFamily: RedaVia.Theme.fontFamily
+            defaultColor: RedaVia.Theme.primaryGreen
+            hoveredColor: Qt.lighter(RedaVia.Theme.primaryGreen, 1.08)
+            pressedColor: Qt.darker(RedaVia.Theme.primaryGreen, 1.08)
+            disabledColor: RedaVia.Theme.borderColor
+            textColor: RedaVia.Theme.background
+            borderColor: RedaVia.Theme.primaryGreen
+            borderFocusedColor: RedaVia.Theme.textPrimary
+            buttonRadius: RedaVia.Theme.buttonRadius
 
             text: root.yesButtonText
 
@@ -75,12 +93,16 @@ DrawerType2 {
             Layout.rightMargin: 16
             Layout.leftMargin: 16
 
-            defaultColor: AmneziaStyle.color.transparent
-            hoveredColor: AmneziaStyle.color.translucentWhite
-            pressedColor: AmneziaStyle.color.sheerWhite
-            disabledColor: AmneziaStyle.color.mutedGray
-            textColor: AmneziaStyle.color.paleGray
+            fontFamily: RedaVia.Theme.fontFamily
+            defaultColor: RedaVia.Theme.cardBackground
+            hoveredColor: RedaVia.Theme.cardBackgroundAlt
+            pressedColor: RedaVia.Theme.borderColor
+            disabledColor: RedaVia.Theme.cardBackground
+            textColor: RedaVia.Theme.textPrimary
+            borderColor: RedaVia.Theme.borderColor
+            borderFocusedColor: RedaVia.Theme.primaryGreen
             borderWidth: 1
+            buttonRadius: RedaVia.Theme.buttonRadius
 
             visible: root.noButtonText !== ""
 

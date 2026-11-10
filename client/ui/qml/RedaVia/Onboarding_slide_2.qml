@@ -93,7 +93,7 @@ Rectangle {
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "Advanced Security"
+                    text: qsTr("Advanced Security")
                 }
 
                 Text {
@@ -104,7 +104,7 @@ Rectangle {
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "No need to think twice!"
+                    text: qsTr("No need to think twice!")
                 }
 
                 Text {
@@ -117,7 +117,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     lineHeight: Math.max(22, onboarding_slide_2.bodySize * 1.5)
                     lineHeightMode: Text.FixedHeight
-                    text: "RedaVPN will automatically block dangerous websites, prevent malicious ads from loading, and notify you immediately if your password is leaked."
+                    text: qsTr("RedaVPN will automatically block dangerous websites, prevent malicious ads from loading, and notify you immediately if your password is leaked.")
                 }
             }
 
@@ -141,7 +141,7 @@ Rectangle {
                 font.family: "Inter"
                 font.pixelSize: onboarding_slide_2.buttonTextSize
                 font.weight: Font.Bold
-                text: "Next"
+                text: qsTr("Next")
             }
 
             MouseArea {

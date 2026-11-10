@@ -101,7 +101,7 @@ Rectangle {
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                    text: "Trustworthy Protection"
+                    text: qsTr("Trustworthy Protection")
                 }
 
                 Text {
@@ -114,7 +114,7 @@ Rectangle {
                     wrapMode: Text.Wrap
                     lineHeight: Math.max(22, onboarding_slide_3.bodySize * 1.55)
                     lineHeightMode: Text.FixedHeight
-                    text: "RedaVPN provides trustworthy security protection for ordinary users, technology enthusiasts, and industry experts. Join a global community that puts digital freedom and security first."
+                    text: qsTr("RedaVPN provides trustworthy security protection for ordinary users, technology enthusiasts, and industry experts. Join a global community that puts digital freedom and security first.")
                 }
             }
         }
@@ -140,7 +140,7 @@ Rectangle {
                     font.family: "Inter"
                     font.pixelSize: onboarding_slide_3.buttonTextSize
                     font.weight: Font.Bold
-                    text: "Sign Up"
+                    text: qsTr("Sign Up")
                 }
 
                 MouseArea {
@@ -163,7 +163,7 @@ Rectangle {
                     font.family: "Inter"
                     font.pixelSize: onboarding_slide_3.buttonTextSize
                     font.weight: Font.Bold
-                    text: "Sign In"
+                    text: qsTr("Sign In")
                 }
 
                 MouseArea {
@@ -181,7 +181,7 @@ Rectangle {
                 font.underline: true
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                text: "Subscription and Privacy Information"
+                text: qsTr("Subscription and Privacy Information")
             }
         }
     }

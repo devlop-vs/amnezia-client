@@ -1,6 +1,7 @@
 #ifndef VPNPROTOCOL_H
 #define VPNPROTOCOL_H
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QString>
 #include <QJsonObject>
@@ -73,7 +74,8 @@ public:
     static VpnProtocol* factory(amnezia::DockerContainer container, const QJsonObject &configuration);
 
 signals:
-    void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void trafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                        quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond);
     void connectionStateChanged(Vpn::ConnectionState state);
     void timeoutTimerEvent();
     void protocolError(amnezia::ErrorCode e);
@@ -102,6 +104,7 @@ private:
     ErrorCode m_lastError;
     quint64 m_receivedBytes;
     quint64 m_sentBytes;
+    QElapsedTimer m_trafficUpdateTimer;
 };
 
 #endif // VPNPROTOCOL_H

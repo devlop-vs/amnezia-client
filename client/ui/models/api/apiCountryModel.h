@@ -21,7 +21,14 @@ public:
         SupportedProtocolsRole,
         CityNamesRole,
         CityRequestNamesRole,
-        CityCountRole
+        CityFallbackNamesRole,
+        CityCountRole,
+        CountryLatencyMsRole,
+        CountryLatencyTextRole,
+        CountrySignalBarsRole,
+        CountryQualityStatusRole,
+        CountryQualityLabelRole,
+        CityQualitiesRole
     };
 
     explicit ApiCountryModel(QObject *parent = nullptr);
@@ -32,6 +39,15 @@ public:
 
     Q_PROPERTY(int currentIndex READ getCurrentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
 
+    struct NodeQuality
+    {
+        int latencyMs = -1;
+        int signalBars = 0;
+        int score = -1;
+        QString status = QStringLiteral("unknown");
+        QString label = QStringLiteral("Unknown");
+    };
+
     struct CountryInfo
     {
         QString countryName;
@@ -40,11 +56,17 @@ public:
         QStringList supportedProtocols;
         QStringList cityNames;
         QStringList cityRequestNames;
+        QStringList cityFallbackNames;
+        QList<NodeQuality> cityQualities;
     };
 
 public slots:
     void updateModel(const QJsonArray &countries, const QString &currentCountryCode);
     void updateIssuedConfigsInfo(const QJsonArray &issuedConfigs);
+    void refreshTranslations();
+    void resetNodeQualities();
+    void setNodeQuality(const QString &countryCode, const QString &cityCode, int latencyMs,
+                        int signalBars, int score, const QString &status, const QString &label);
 
     int getCurrentIndex();
     void setCurrentIndex(const int i);

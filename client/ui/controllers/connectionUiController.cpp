@@ -7,6 +7,9 @@
 #endif
 
 #include <QDateTime>
+#include <QTimeZone>
+
+#include <limits>
 
 #include "amneziaApplication.h"
 #include "core/controllers/serversController.h"
@@ -15,19 +18,37 @@
 
 ConnectionUiController::ConnectionUiController(ConnectionController* connectionController,
                                                 ServersController* serversController,
+                                                SecureAppSettingsRepository *appSettingsRepository,
                                                 QObject *parent)
     : QObject(parent),
       m_connectionController(connectionController),
-      m_serversController(serversController)
+      m_serversController(serversController),
+      m_appSettingsRepository(appSettingsRepository)
 {
     connect(m_connectionController, &ConnectionController::connectionStateChanged, this, &ConnectionUiController::onConnectionStateChanged);
-    connect(m_connectionController, &ConnectionController::bytesChanged, this, &ConnectionUiController::onBytesChanged);
+    connect(m_connectionController, &ConnectionController::trafficUpdated, this, &ConnectionUiController::onTrafficUpdated);
 
     connect(this, &ConnectionUiController::connectButtonClicked, this, &ConnectionUiController::toggleConnection, Qt::QueuedConnection);
 
     m_connectionDurationTimer.setInterval(1000);
     connect(&m_connectionDurationTimer, &QTimer::timeout, this, &ConnectionUiController::updateConnectionDuration);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        if (m_isConnectionDurationActive) {
+            updateConnectionDuration();
+        }
+        persistUsageStats(true);
+    });
+    connect(qGuiApp, &QGuiApplication::applicationStateChanged, this,
+            [this](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationInactive || state == Qt::ApplicationSuspended) {
+            if (m_isConnectionDurationActive) {
+                updateConnectionDuration();
+            }
+            persistUsageStats(true);
+        }
+    });
 
+    loadUsageStats(QDateTime::currentDateTime());
     m_state = Vpn::ConnectionState::Disconnected;
 }
 
@@ -167,22 +188,49 @@ void ConnectionUiController::onConnectionStateChanged(Vpn::ConnectionState state
     emit connectionStateChanged();
 }
 
-void ConnectionUiController::onBytesChanged(quint64 receivedBytes, quint64 sentBytes)
+void ConnectionUiController::onTrafficUpdated(quint64 receivedDeltaBytes, quint64 sentDeltaBytes,
+                                              quint64 receivedBytesPerSecond, quint64 sentBytesPerSecond)
 {
-    m_downloadSpeedText = VpnConnection::bytesPerSecToText(receivedBytes);
-    m_uploadSpeedText = VpnConnection::bytesPerSecToText(sentBytes);
-    emit speedChanged();
+    rollUsagePeriods(QDateTime::currentDateTime());
+    const quint64 totalDelta = std::numeric_limits<quint64>::max() - receivedDeltaBytes < sentDeltaBytes
+        ? std::numeric_limits<quint64>::max() : receivedDeltaBytes + sentDeltaBytes;
+    m_dailyUsage.trafficBytes = std::numeric_limits<quint64>::max() - m_dailyUsage.trafficBytes < totalDelta
+        ? std::numeric_limits<quint64>::max() : m_dailyUsage.trafficBytes + totalDelta;
+    m_monthlyUsage.trafficBytes = std::numeric_limits<quint64>::max() - m_monthlyUsage.trafficBytes < totalDelta
+        ? std::numeric_limits<quint64>::max() : m_monthlyUsage.trafficBytes + totalDelta;
+    m_usageStatsDirty = m_usageStatsDirty || totalDelta > 0;
+
+    const QString downloadSpeedText = VpnConnection::bytesPerSecToText(receivedBytesPerSecond);
+    const QString uploadSpeedText = VpnConnection::bytesPerSecToText(sentBytesPerSecond);
+    if (m_downloadSpeedText != downloadSpeedText || m_uploadSpeedText != uploadSpeedText) {
+        m_downloadSpeedText = downloadSpeedText;
+        m_uploadSpeedText = uploadSpeedText;
+        emit speedChanged();
+    }
+    if (totalDelta > 0) {
+        emit usageStatsChanged();
+        persistUsageStats();
+    }
 }
 
 void ConnectionUiController::updateConnectionDuration()
 {
-    const QString durationText = formatConnectionDuration(currentConnectionDurationMs());
-    if (m_connectionDurationText == durationText) {
-        return;
+    if (m_isConnectionDurationActive) {
+        const qint64 nowEpochMs = QDateTime::currentMSecsSinceEpoch();
+        addProtectedDuration(m_lastUsageUpdateEpochMs, nowEpochMs);
+        m_lastUsageUpdateEpochMs = nowEpochMs;
     }
 
-    m_connectionDurationText = durationText;
-    emit connectionDurationChanged();
+    const QString durationText = formatConnectionDuration(currentConnectionDurationMs());
+    if (m_connectionDurationText != durationText) {
+        m_connectionDurationText = durationText;
+        emit connectionDurationChanged();
+    }
+
+    if (m_isConnectionDurationActive) {
+        emit usageStatsChanged();
+        persistUsageStats();
+    }
 }
 
 void ConnectionUiController::onTranslationsUpdated()
@@ -215,6 +263,31 @@ QString ConnectionUiController::connectionDurationText() const
     return m_connectionDurationText;
 }
 
+QString ConnectionUiController::connectionServerId() const
+{
+    return m_connectionServerId;
+}
+
+QString ConnectionUiController::todayProtectedDurationText() const
+{
+    return formatProtectedDuration(m_dailyUsage.durationMs);
+}
+
+QString ConnectionUiController::todayProtectedVolumeText() const
+{
+    return formatProtectedVolume(m_dailyUsage.trafficBytes);
+}
+
+QString ConnectionUiController::monthProtectedDurationText() const
+{
+    return formatProtectedDuration(m_monthlyUsage.durationMs);
+}
+
+QString ConnectionUiController::monthProtectedVolumeText() const
+{
+    return formatProtectedVolume(m_monthlyUsage.trafficBytes);
+}
+
 QString ConnectionUiController::formatConnectionDuration(qint64 durationMs) const
 {
     const qint64 totalSeconds = durationMs / 1000;
@@ -244,8 +317,11 @@ void ConnectionUiController::resumeConnectionDuration()
         return;
     }
 
+    const qint64 nowEpochMs = QDateTime::currentMSecsSinceEpoch();
     m_isConnectionDurationActive = true;
-    m_connectionDurationStartedAtMs = QDateTime::currentMSecsSinceEpoch();
+    m_connectionDurationStartedAtMs = nowEpochMs;
+    m_lastUsageUpdateEpochMs = nowEpochMs;
+    rollUsagePeriods(QDateTime::fromMSecsSinceEpoch(nowEpochMs));
     m_connectionDurationTimer.start();
     updateConnectionDuration();
 }
@@ -257,11 +333,137 @@ void ConnectionUiController::pauseConnectionDuration()
         return;
     }
 
+    updateConnectionDuration();
     m_accumulatedConnectionDurationMs = currentConnectionDurationMs();
     m_isConnectionDurationActive = false;
     m_connectionDurationStartedAtMs = 0;
+    m_lastUsageUpdateEpochMs = 0;
     m_connectionDurationTimer.stop();
-    updateConnectionDuration();
+    persistUsageStats(true);
+}
+
+void ConnectionUiController::loadUsageStats(const QDateTime &now)
+{
+    m_usageDate = now.date();
+    m_usageMonth = monthKey(m_usageDate);
+    if (!m_appSettingsRepository) {
+        return;
+    }
+    m_dailyUsage = m_appSettingsRepository->vpnUsageForDate(m_usageDate);
+    m_monthlyUsage = m_appSettingsRepository->vpnUsageForMonth(m_usageMonth);
+    m_lastUsagePersistenceEpochMs = now.toMSecsSinceEpoch();
+}
+
+void ConnectionUiController::rollUsagePeriods(const QDateTime &now)
+{
+    if (m_usageDate == now.date() && m_usageMonth == monthKey(now.date())) {
+        return;
+    }
+
+    const QString newMonth = monthKey(now.date());
+    if (m_appSettingsRepository && m_usageStatsDirty) {
+        if (m_usageDate.isValid()) {
+            m_appSettingsRepository->setVpnUsageForDate(m_usageDate, m_dailyUsage);
+        }
+        if (!m_usageMonth.isEmpty()) {
+            m_appSettingsRepository->setVpnUsageForMonth(m_usageMonth, m_monthlyUsage);
+        }
+        m_lastUsagePersistenceEpochMs = QDateTime::currentMSecsSinceEpoch();
+        m_usageStatsDirty = false;
+    }
+    if (m_usageDate != now.date()) {
+        m_usageDate = now.date();
+        m_dailyUsage = m_appSettingsRepository
+            ? m_appSettingsRepository->vpnUsageForDate(m_usageDate) : VpnUsagePeriod {};
+    }
+    if (m_usageMonth != newMonth) {
+        m_usageMonth = newMonth;
+        m_monthlyUsage = m_appSettingsRepository
+            ? m_appSettingsRepository->vpnUsageForMonth(m_usageMonth) : VpnUsagePeriod {};
+    }
+    emit usageStatsChanged();
+}
+
+void ConnectionUiController::addProtectedDuration(qint64 fromEpochMs, qint64 toEpochMs)
+{
+    if (fromEpochMs <= 0 || toEpochMs <= fromEpochMs) {
+        return;
+    }
+
+    qint64 cursor = fromEpochMs;
+    while (cursor < toEpochMs) {
+        const QDateTime cursorTime = QDateTime::fromMSecsSinceEpoch(cursor);
+        rollUsagePeriods(cursorTime);
+        const QDateTime nextMidnight(cursorTime.date().addDays(1), QTime(0, 0), cursorTime.timeZone());
+        const qint64 segmentEnd = qMin(toEpochMs, nextMidnight.toMSecsSinceEpoch());
+        const qint64 durationMs = segmentEnd - cursor;
+        m_dailyUsage.durationMs = std::numeric_limits<qint64>::max() - m_dailyUsage.durationMs < durationMs
+            ? std::numeric_limits<qint64>::max() : m_dailyUsage.durationMs + durationMs;
+        m_monthlyUsage.durationMs = std::numeric_limits<qint64>::max() - m_monthlyUsage.durationMs < durationMs
+            ? std::numeric_limits<qint64>::max() : m_monthlyUsage.durationMs + durationMs;
+        m_usageStatsDirty = true;
+        cursor = segmentEnd;
+    }
+}
+
+void ConnectionUiController::persistUsageStats(bool force)
+{
+    if (!m_appSettingsRepository || !m_usageStatsDirty) {
+        return;
+    }
+    const qint64 nowEpochMs = QDateTime::currentMSecsSinceEpoch();
+    rollUsagePeriods(QDateTime::fromMSecsSinceEpoch(nowEpochMs));
+    if (!m_usageStatsDirty || (!force && nowEpochMs - m_lastUsagePersistenceEpochMs < 15000)) {
+        return;
+    }
+
+    m_appSettingsRepository->setVpnUsageForDate(m_usageDate, m_dailyUsage);
+    m_appSettingsRepository->setVpnUsageForMonth(m_usageMonth, m_monthlyUsage);
+    m_lastUsagePersistenceEpochMs = nowEpochMs;
+    m_usageStatsDirty = false;
+}
+
+QString ConnectionUiController::formatProtectedDuration(qint64 durationMs) const
+{
+    const qint64 totalSeconds = qMax<qint64>(0, durationMs) / 1000;
+    if (totalSeconds < 60) {
+        return QStringLiteral("%1 sec").arg(totalSeconds);
+    }
+    const qint64 totalMinutes = totalSeconds / 60;
+    if (totalMinutes < 60) {
+        return QStringLiteral("%1 min").arg(totalMinutes);
+    }
+    return QStringLiteral("%1h %2m").arg(totalMinutes / 60).arg(totalMinutes % 60);
+}
+
+QString ConnectionUiController::formatProtectedVolume(quint64 bytes) const
+{
+    static constexpr quint64 KiB = 1024;
+    static constexpr quint64 MiB = KiB * 1024;
+    static constexpr quint64 GiB = MiB * 1024;
+    if (bytes < KiB) {
+        return QStringLiteral("%1 B").arg(bytes);
+    }
+
+    quint64 unit = KiB;
+    QString suffix = QStringLiteral("KiB");
+    int precision = 1;
+    if (bytes >= GiB) {
+        unit = GiB;
+        suffix = QStringLiteral("GiB");
+        precision = 2;
+    } else if (bytes >= MiB) {
+        unit = MiB;
+        suffix = QStringLiteral("MiB");
+        precision = bytes % unit == 0 ? 0 : 1;
+    }
+    const double value = static_cast<double>(bytes) / static_cast<double>(unit);
+    return QStringLiteral("%1 %2").arg(QString::number(value, 'f', precision), suffix);
+}
+
+QString ConnectionUiController::monthKey(const QDate &date) const
+{
+    return date.toString(QStringLiteral("yyyy-MM"));
 }
 
 void ConnectionUiController::toggleConnection()

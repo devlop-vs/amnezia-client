@@ -48,6 +48,16 @@ namespace
 constexpr int googlePlaySubscriptionRequestTimeoutMsecs = 60 * 1000;
 constexpr int configRequestTimeoutMsecs = 30 * 1000;
 
+QString endpointUidFromResponse(const QJsonObject &response)
+{
+    QString endpointUid = response.value(apiDefs::key::endpointUid).toString().trimmed();
+    if (endpointUid.isEmpty()) {
+        endpointUid = response.value(apiDefs::key::apiConfig).toObject()
+                          .value(apiDefs::key::endpointUid).toString().trimmed();
+    }
+    return endpointUid;
+}
+
 QString getSubscriptionStatusForRenewal(const ApiConfig &apiConfig)
 {
     if (apiConfig.subscriptionExpiredByServer) {
@@ -480,6 +490,9 @@ QJsonObject SubscriptionController::GatewayRequestData::toJsonObject() const
     if (!serverCityName.isEmpty()) {
         obj[apiDefs::key::serverCityName] = serverCityName;
     }
+    if (!serverCityCode.isEmpty()) {
+        obj[apiDefs::key::serverCityCode] = serverCityCode;
+    }
     if (!serviceType.isEmpty()) {
         obj[apiDefs::key::serviceType] = serviceType;
     }
@@ -625,7 +638,10 @@ void SubscriptionController::updateApiConfigInJson(QJsonObject &serverConfigJson
                                                     const QString &serviceProtocol, const QString &userCountryCode,
                                                     const QByteArray &apiResponseBody,
                                                     const QString &serverCountryCode,
-                                                    const QString &serverCountryName)
+                                                    const QString &serverCountryName,
+                                                    const QString &serverCityCode,
+                                                    const QString &serverCityName,
+                                                    const QString &existingEndpointUid)
 {
     QJsonObject apiConfig = serverConfigJson.value(apiDefs::key::apiConfig).toObject();
     
@@ -638,18 +654,284 @@ void SubscriptionController::updateApiConfigInJson(QJsonObject &serverConfigJson
     if (!serverCountryName.isEmpty()) {
         apiConfig[apiDefs::key::serverCountryName] = serverCountryName;
     }
+    if (!serverCountryCode.isEmpty()) {
+        if (serverCityCode.isEmpty()) {
+            apiConfig.remove(apiDefs::key::serverCityCode);
+        } else {
+            apiConfig[apiDefs::key::serverCityCode] = serverCityCode;
+        }
+        if (serverCityName.isEmpty()) {
+            apiConfig.remove(apiDefs::key::serverCityName);
+        } else {
+            apiConfig[apiDefs::key::serverCityName] = serverCityName;
+        }
+    }
     
     if (serverConfigJson.value(configKey::configVersion).toInt() == serverConfigUtils::ConfigSource::AmneziaGateway) {
-        QJsonObject responseObj = QJsonDocument::fromJson(apiResponseBody).object();
+        const QJsonObject responseObj = QJsonDocument::fromJson(apiResponseBody).object();
         if (responseObj.contains(apiDefs::key::supportedProtocols)) {
             apiConfig.insert(apiDefs::key::supportedProtocols, responseObj.value(apiDefs::key::supportedProtocols).toArray());
         }
         if (responseObj.contains(apiDefs::key::serviceInfo)) {
             apiConfig.insert(apiDefs::key::serviceInfo, responseObj.value(apiDefs::key::serviceInfo).toObject());
         }
+
+        const QString responseEndpointUid = endpointUidFromResponse(responseObj);
+        if (!responseEndpointUid.isEmpty()) {
+            apiConfig[apiDefs::key::endpointUid] = responseEndpointUid;
+        } else if (apiConfig.value(apiDefs::key::endpointUid).toString().trimmed().isEmpty()
+                   && !existingEndpointUid.isEmpty()) {
+            apiConfig[apiDefs::key::endpointUid] = existingEndpointUid;
+        }
     }
     
     serverConfigJson[apiDefs::key::apiConfig] = apiConfig;
+}
+
+SubscriptionController::TextLocalizationResult SubscriptionController::cachedTextLocalizations() const
+{
+    const QString language = m_appSettingsRepository->getAppLanguage().name();
+    return { language,
+             m_appSettingsRepository->textLocalizationVersion(language),
+             m_appSettingsRepository->textLocalizationCache(language) };
+}
+
+bool SubscriptionController::shouldRefreshTextLocalizations() const
+{
+    const QDateTime updatedAt = m_appSettingsRepository->textLocalizationUpdatedAt(
+        m_appSettingsRepository->getAppLanguage().name());
+    return !updatedAt.isValid() || updatedAt.secsTo(QDateTime::currentDateTimeUtc()) >= 24 * 60 * 60;
+}
+
+QFuture<QPair<ErrorCode, SubscriptionController::TextLocalizationResult>> SubscriptionController::getTextLocalizations()
+{
+    using Result = QPair<ErrorCode, TextLocalizationResult>;
+    auto promise = QSharedPointer<QPromise<Result>>::create();
+    promise->start();
+
+    const QString requestedLanguage = m_appSettingsRepository->getAppLanguage().name();
+    GatewayRequestData requestData { QSysInfo::productType(),
+                                     QString(APP_VERSION),
+                                     requestedLanguage,
+                                     m_appSettingsRepository->getInstallationUuid(true),
+                                     {}, {}, {}, {}, {},
+                                     authDataWithUserEmail(QJsonObject()) };
+    auto gatewayController = QSharedPointer<GatewayController>::create(
+        m_appSettingsRepository->getGatewayEndpoint(false), m_appSettingsRepository->isDevGatewayEnv(false),
+        apiDefs::requestTimeoutMsecs, m_appSettingsRepository->isStrictKillSwitchEnabled(), m_appSettingsRepository);
+    auto postFuture = gatewayController->postAsync(QStringLiteral("%1v1/localization/texts"), requestData.toJsonObject());
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, QByteArray>>();
+    QObject::connect(watcher, &QFutureWatcher<QPair<ErrorCode, QByteArray>>::finished,
+                     [this, promise, watcher, gatewayController, requestedLanguage]() {
+        const auto [errorCode, responseBody] = watcher->result();
+        watcher->deleteLater();
+        if (errorCode != ErrorCode::NoError) {
+            promise->addResult(qMakePair(errorCode, TextLocalizationResult {}));
+            promise->finish();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(responseBody, &parseError);
+        const QJsonObject object = document.object();
+        TextLocalizationResult result { object.value(QStringLiteral("language")).toString().trimmed(),
+                                        object.value(QStringLiteral("version")).toString(),
+                                        object.value(QStringLiteral("texts")).toObject() };
+        if (parseError.error != QJsonParseError::NoError || !document.isObject()
+            || result.language != requestedLanguage || result.texts.isEmpty()) {
+            promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, TextLocalizationResult {}));
+            promise->finish();
+            return;
+        }
+
+        m_appSettingsRepository->setTextLocalizationCache(result.language, result.version, result.texts,
+                                                           QDateTime::currentDateTimeUtc());
+        promise->addResult(qMakePair(ErrorCode::NoError, result));
+        promise->finish();
+    });
+    watcher->setFuture(postFuture);
+    return promise->future();
+}
+
+SubscriptionController::CityLocalizationResult SubscriptionController::cachedCityLocalizations() const
+{
+    const QString language = m_appSettingsRepository->getAppLanguage().name();
+    return { language,
+             m_appSettingsRepository->cityLocalizationVersion(language),
+             m_appSettingsRepository->cityLocalizationCache(language) };
+}
+
+bool SubscriptionController::shouldRefreshCityLocalizations() const
+{
+    const QDateTime updatedAt = m_appSettingsRepository->cityLocalizationUpdatedAt(
+        m_appSettingsRepository->getAppLanguage().name());
+    return !updatedAt.isValid() || updatedAt.secsTo(QDateTime::currentDateTimeUtc()) >= 24 * 60 * 60;
+}
+
+QFuture<QPair<ErrorCode, SubscriptionController::CityLocalizationResult>> SubscriptionController::getCityLocalizations()
+{
+    using Result = QPair<ErrorCode, CityLocalizationResult>;
+    auto promise = QSharedPointer<QPromise<Result>>::create();
+    promise->start();
+
+    const QString requestedLanguage = m_appSettingsRepository->getAppLanguage().name();
+    GatewayRequestData requestData { QSysInfo::productType(),
+                                     QString(APP_VERSION),
+                                     requestedLanguage,
+                                     m_appSettingsRepository->getInstallationUuid(true),
+                                     {}, {}, {}, {}, {},
+                                     authDataWithUserEmail(QJsonObject()) };
+    auto gatewayController = QSharedPointer<GatewayController>::create(
+        m_appSettingsRepository->getGatewayEndpoint(false), m_appSettingsRepository->isDevGatewayEnv(false),
+        apiDefs::requestTimeoutMsecs, m_appSettingsRepository->isStrictKillSwitchEnabled(), m_appSettingsRepository);
+    auto postFuture = gatewayController->postAsync(QStringLiteral("%1v1/localization/cities"), requestData.toJsonObject());
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, QByteArray>>();
+    QObject::connect(watcher, &QFutureWatcher<QPair<ErrorCode, QByteArray>>::finished,
+                     [this, promise, watcher, gatewayController, requestedLanguage]() {
+        const auto [errorCode, responseBody] = watcher->result();
+        watcher->deleteLater();
+        if (errorCode != ErrorCode::NoError) {
+            promise->addResult(qMakePair(errorCode, CityLocalizationResult {}));
+            promise->finish();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(responseBody, &parseError);
+        const QJsonObject object = document.object();
+        CityLocalizationResult result { object.value(QStringLiteral("language")).toString().trimmed(),
+                                        object.value(QStringLiteral("version")).toString(),
+                                        object.value(QStringLiteral("cities")).toObject() };
+        if (parseError.error != QJsonParseError::NoError || !document.isObject()
+            || result.language != requestedLanguage || result.cities.isEmpty()) {
+            promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, CityLocalizationResult {}));
+            promise->finish();
+            return;
+        }
+
+        m_appSettingsRepository->setCityLocalizationCache(result.language, result.version, result.cities,
+                                                           QDateTime::currentDateTimeUtc());
+        promise->addResult(qMakePair(ErrorCode::NoError, result));
+        promise->finish();
+    });
+    watcher->setFuture(postFuture);
+    return promise->future();
+}
+
+QFuture<QPair<ErrorCode, QList<SubscriptionController::NodeHealthInfo>>>
+SubscriptionController::getNodeHealthQuality(const QString &serverId)
+{
+    using Result = QPair<ErrorCode, QList<NodeHealthInfo>>;
+    auto promise = QSharedPointer<QPromise<Result>>::create();
+    promise->start();
+
+    const auto serverConfigJson = m_serversRepository->getServerConfig(serverId);
+    if (serverConfigJson.isEmpty()) {
+        promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, QList<NodeHealthInfo> {}));
+        promise->finish();
+        return promise->future();
+    }
+
+    ApiV2ServerConfig apiV2 = ApiV2ServerConfig::fromJson(serverConfigJson);
+    const QString serviceProtocol = apiV2.serviceProtocol().trimmed().toLower();
+    if (serviceProtocol.isEmpty() || apiV2.serviceType().trimmed().isEmpty()) {
+        promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, QList<NodeHealthInfo> {}));
+        promise->finish();
+        return promise->future();
+    }
+
+    const ProtocolData protocolData = reusableProtocolIdentity(apiV2, serviceProtocol);
+    if (!hasReusableProtocolIdentity(serviceProtocol, protocolData)) {
+        promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, QList<NodeHealthInfo> {}));
+        promise->finish();
+        return promise->future();
+    }
+
+    GatewayRequestData requestData;
+    requestData.osVersion = QSysInfo::productType();
+    requestData.appVersion = QString(APP_VERSION);
+    requestData.appLanguage = m_appSettingsRepository->getAppLanguage().name();
+    requestData.installationUuid = m_appSettingsRepository->getInstallationUuid(true);
+    requestData.userCountryCode = m_appSettingsRepository->getUserCountryCode();
+    requestData.serverCountryCode = apiV2.apiConfig.serverCountryCode;
+    requestData.serverCityName = apiV2.apiConfig.serverCityName;
+    requestData.serverCityCode = apiV2.apiConfig.serverCityCode;
+    requestData.serviceType = apiV2.serviceType();
+    requestData.serviceProtocol = serviceProtocol;
+    requestData.authData = authDataWithUserEmail(apiV2.authData.toJson());
+    QJsonObject payload = requestData.toJsonObject();
+    if (!apiV2.apiConfig.endpointUid.isEmpty()) {
+        payload[apiDefs::key::endpointUid] = apiV2.apiConfig.endpointUid;
+    }
+    appendProtocolDataToApiPayload(serviceProtocol, protocolData, payload);
+
+    const bool isTestPurchase = apiV2.apiConfig.isTestPurchase;
+    auto gatewayController = QSharedPointer<GatewayController>::create(
+        m_appSettingsRepository->getGatewayEndpoint(isTestPurchase), m_appSettingsRepository->isDevGatewayEnv(isTestPurchase),
+        apiDefs::requestTimeoutMsecs, m_appSettingsRepository->isStrictKillSwitchEnabled(), m_appSettingsRepository);
+    auto postFuture = gatewayController->postAsync(QStringLiteral("%1api/internal/v1/vpnstatus/health_quality"), payload);
+    auto *watcher = new QFutureWatcher<QPair<ErrorCode, QByteArray>>();
+    QObject::connect(watcher, &QFutureWatcher<QPair<ErrorCode, QByteArray>>::finished,
+                     [promise, watcher, gatewayController]() {
+        const auto [errorCode, responseBody] = watcher->result();
+        watcher->deleteLater();
+        if (errorCode != ErrorCode::NoError) {
+            promise->addResult(qMakePair(errorCode, QList<NodeHealthInfo> {}));
+            promise->finish();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(responseBody, &parseError);
+        if (parseError.error != QJsonParseError::NoError) {
+            promise->addResult(qMakePair(ErrorCode::ApiConfigEmptyError, QList<NodeHealthInfo> {}));
+            promise->finish();
+            return;
+        }
+
+        QJsonArray nodes;
+        if (document.isArray()) {
+            nodes = document.array();
+        } else if (document.isObject()) {
+            const QJsonObject root = document.object();
+            if (root.value(QStringLiteral("nodes")).isArray()) {
+                nodes = root.value(QStringLiteral("nodes")).toArray();
+            } else if (root.value(QStringLiteral("data")).isArray()) {
+                nodes = root.value(QStringLiteral("data")).toArray();
+            } else {
+                nodes.append(root);
+            }
+        }
+
+        QList<NodeHealthInfo> result;
+        result.reserve(nodes.size());
+        for (const QJsonValue &value : nodes) {
+            if (!value.isObject()) {
+                continue;
+            }
+            const QJsonObject object = value.toObject();
+            bool validPort = false;
+            const int probePort = object.value(apiDefs::key::probePort).toVariant().toInt(&validPort);
+            NodeHealthInfo info;
+            info.nodeId = object.value(apiDefs::key::nodeId).toVariant().toString().trimmed();
+            info.countryCode = object.value(apiDefs::key::serverCountryCode).toString().trimmed().toUpper();
+            info.cityCode = object.value(apiDefs::key::serverCityCode).toString().trimmed();
+            info.protocol = object.value(apiDefs::key::protocol).toString().trimmed().toLower();
+            info.serverStatus = object.value(apiDefs::key::serverStatus).toString().trimmed().toLower();
+            info.serverLoadScore = object.value(apiDefs::key::serverLoadScore).toInt(-1);
+            info.capacityStatus = object.value(apiDefs::key::capacityStatus).toString().trimmed().toLower();
+            info.updatedAt = object.value(apiDefs::key::updatedAt).toString().trimmed();
+            info.probeHost = object.value(apiDefs::key::probeHost).toString().trimmed();
+            info.probePort = validPort && probePort > 0 && probePort <= 65535 ? static_cast<quint16>(probePort) : 0;
+            info.probeType = object.value(apiDefs::key::probeType).toString().trimmed().toLower();
+            result.append(info);
+        }
+
+        promise->addResult(qMakePair(ErrorCode::NoError, result));
+        promise->finish();
+    });
+    watcher->setFuture(postFuture);
+    return promise->future();
 }
 
 ErrorCode SubscriptionController::executeRequest(const QString &endpoint, const QJsonObject &apiPayload, QByteArray &responseBody,
@@ -667,7 +949,7 @@ ErrorCode SubscriptionController::importServiceFromGateway(const QString &userCo
 {
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
@@ -728,7 +1010,7 @@ ErrorCode SubscriptionController::importTrialFromGateway(const QString &userCoun
 
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
@@ -786,7 +1068,7 @@ ErrorCode SubscriptionController::importServiceFromAppStore(const QString &userC
 {
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
@@ -886,7 +1168,7 @@ ErrorCode SubscriptionController::importServiceFromGooglePlay(const QString &use
 
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
@@ -1018,9 +1300,9 @@ ErrorCode SubscriptionController::importServiceFromGooglePlay(const QString &use
 }
 
 ErrorCode SubscriptionController::updateServiceFromGateway(const QString &serverId, const QString &newCountryCode, bool isConnectEvent,
-                                                           const QString &newCityName,
+                                                           const QString &newCityCode,
                                                            const QString &serviceProtocolOverride, bool resetClientIdentity,
-                                                           const QString &newCountryName)
+                                                           const QString &newCountryName, const QString &newCityName)
 {
     auto apiV2 = m_serversRepository->apiV2Config(serverId);
     if (!apiV2.has_value()) {
@@ -1056,16 +1338,18 @@ ErrorCode SubscriptionController::updateServiceFromGateway(const QString &server
     }
     
     QJsonObject authDataJson = authDataWithUserEmail(apiV2->authData.toJson());
-    GatewayRequestData gatewayRequestData { QSysInfo::productType(),
-                                            QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
-                                            m_appSettingsRepository->getInstallationUuid(true),
-                                            apiV2->apiConfig.userCountryCode,
-                                            newCountryCode,
-                                            newCityName,
-                                            apiV2->serviceType(),
-                                            serviceProtocol,
-                                            authDataJson };
+    GatewayRequestData gatewayRequestData;
+    gatewayRequestData.osVersion = QSysInfo::productType();
+    gatewayRequestData.appVersion = QString(APP_VERSION);
+    gatewayRequestData.appLanguage = m_appSettingsRepository->getAppLanguage().name();
+    gatewayRequestData.installationUuid = m_appSettingsRepository->getInstallationUuid(true);
+    gatewayRequestData.userCountryCode = apiV2->apiConfig.userCountryCode;
+    gatewayRequestData.serverCountryCode = newCountryCode;
+    gatewayRequestData.serverCityName = newCityName;
+    gatewayRequestData.serverCityCode = newCityCode;
+    gatewayRequestData.serviceType = apiV2->serviceType();
+    gatewayRequestData.serviceProtocol = serviceProtocol;
+    gatewayRequestData.authData = authDataJson;
 
     QJsonObject apiPayload = gatewayRequestData.toJsonObject();
     appendProtocolDataToApiPayload(serviceProtocol, protocolData, apiPayload);
@@ -1092,11 +1376,12 @@ ErrorCode SubscriptionController::updateServiceFromGateway(const QString &server
         return errorCode;
     }
     
-        const QString serverLocationName = newCityName.trimmed().isEmpty()
-            ? (newCountryName.trimmed().isEmpty() ? apiV2->apiConfig.serverCountryName : newCountryName.trimmed())
-            : newCityName.trimmed();
+    const QString serverCountryName = newCountryName.trimmed().isEmpty()
+        ? apiV2->apiConfig.serverCountryName
+        : newCountryName.trimmed();
     updateApiConfigInJson(serverConfigJson, apiV2->apiConfig.serviceType, serviceProtocol, apiV2->apiConfig.userCountryCode,
-                          responseBody, newCountryCode, serverLocationName);
+                          responseBody, newCountryCode, serverCountryName, newCityCode, newCityName.trimmed(),
+                          apiV2->apiConfig.endpointUid);
     
     if (serverConfigJson.value(configKey::configVersion).toInt() != serverConfigUtils::ConfigSource::AmneziaGateway) {
         return ErrorCode::InternalError;
@@ -1145,7 +1430,7 @@ ErrorCode SubscriptionController::resetServiceClientIdentity(const QString &serv
 
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             "",
                                             "",
@@ -1202,7 +1487,7 @@ ErrorCode SubscriptionController::deactivateDevice(const QString &serverId)
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             apiV2->apiConfig.serverCountryCode,
@@ -1240,7 +1525,7 @@ ErrorCode SubscriptionController::deactivateExternalDevice(const QString &server
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             uuid,
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
@@ -1286,7 +1571,7 @@ ErrorCode SubscriptionController::exportNativeConfig(const QString &serverId, co
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
@@ -1322,7 +1607,7 @@ ErrorCode SubscriptionController::revokeNativeConfig(const QString &serverId, co
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             serverCountryCode,
@@ -1370,24 +1655,27 @@ ErrorCode SubscriptionController::validateAndUpdateConfig(const QString &serverI
     }
 
     const QString serverCountryCode = apiV2->apiConfig.serverCountryCode;
-    const QString serverLocationName = apiV2->apiConfig.serverCountryName;
+    const QString serverCountryName = apiV2->apiConfig.serverCountryName;
+    const QString serverCityCode = apiV2->apiConfig.serverCityCode;
+    const QString serverCityName = apiV2->apiConfig.serverCityName;
     const QString serviceProtocol = apiV2->serviceProtocol();
 
     if (!hasInstalledContainers) {
         qDebug() << "validateAndUpdateConfig: installed containers missing, refreshing API config"
                  << "serverCountryCode=" << serverCountryCode
-                 << "serverLocationName=" << serverLocationName
+                 << "serverCountryName=" << serverCountryName
+                 << "serverCityName=" << serverCityName
                  << "serviceProtocol=" << serviceProtocol;
         return updateServiceFromGateway(serverId, serverCountryCode, true,
-                                        serverLocationName, serviceProtocol,
-                                        false, serverLocationName);
+                                        serverCityCode, serviceProtocol,
+                                        false, serverCountryName, serverCityName);
     }
 
     if (isApiKeyExpired(serverId)) {
         qDebug() << "attempt to update api config by expires_at event";
         return updateServiceFromGateway(serverId, serverCountryCode, true,
-                                        serverLocationName, serviceProtocol,
-                                        false, serverLocationName);
+                                        serverCityCode, serviceProtocol,
+                                        false, serverCountryName, serverCityName);
     }
 
     return ErrorCode::NoError;
@@ -1406,14 +1694,17 @@ ErrorCode SubscriptionController::refreshWireGuardConfigForConnection(const QStr
     }
 
     const QString serverCountryCode = apiV2->apiConfig.serverCountryCode;
-    const QString serverLocationName = apiV2->apiConfig.serverCountryName;
+    const QString serverCountryName = apiV2->apiConfig.serverCountryName;
+    const QString serverCityCode = apiV2->apiConfig.serverCityCode;
+    const QString serverCityName = apiV2->apiConfig.serverCityName;
     const ErrorCode errorCode = updateServiceFromGateway(serverId,
                                                          serverCountryCode,
                                                          true,
-                                                         serverLocationName,
+                                                         serverCityCode,
                                                          serviceProtocol,
                                                          false,
-                                                         serverLocationName);
+                                                         serverCountryName,
+                                                         serverCityName);
     if (errorCode != ErrorCode::NoError) {
         return errorCode;
     }
@@ -1453,7 +1744,7 @@ ErrorCode SubscriptionController::buildWireGuardPeerRequest(const QString &serve
 
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             apiV2->apiConfig.serverCountryCode,
@@ -1819,7 +2110,7 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
     authDataJson[apiDefs::key::email] = userEmail;
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             "",
@@ -1857,6 +2148,12 @@ ErrorCode SubscriptionController::getAccountInfo(const QString &serverId, QJsonO
 
     if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
         updatedApiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+        configChanged = true;
+    }
+
+    const QString endpointUid = endpointUidFromResponse(accountInfo);
+    if (!endpointUid.isEmpty() && endpointUid != updatedApiV2.apiConfig.endpointUid) {
+        updatedApiV2.apiConfig.endpointUid = endpointUid;
         configChanged = true;
     }
 
@@ -1936,6 +2233,10 @@ ErrorCode SubscriptionController::restoreAccountConfigByEmail(const QString &ema
             updatedApiV2.apiConfig.supportedProtocols =
                 accountInfo.value(apiDefs::key::supportedProtocols).toArray();
         }
+        const QString endpointUid = endpointUidFromResponse(accountInfo);
+        if (!endpointUid.isEmpty()) {
+            updatedApiV2.apiConfig.endpointUid = endpointUid;
+        }
         m_serversRepository->editServer(existingServerId, updatedApiV2.toJson(),
                                         serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
         serverId = existingServerId;
@@ -1987,7 +2288,7 @@ ErrorCode SubscriptionController::restoreAccountConfigByEmail(const QString &ema
     };
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             userCountryCode,
                                             "",
@@ -2014,8 +2315,9 @@ ErrorCode SubscriptionController::restoreAccountConfigByEmail(const QString &ema
         return errorCode;
     }
 
+    const QString accountEndpointUid = endpointUidFromResponse(accountInfo);
     updateApiConfigInJson(serverConfigJson, serviceType, serviceProtocol,
-                          userCountryCode, responseBody);
+                          userCountryCode, responseBody, {}, {}, {}, {}, accountEndpointUid);
     if (serverConfigJson.value(configKey::configVersion).toInt()
             != serverConfigUtils::ConfigSource::AmneziaGateway) {
         return ErrorCode::InternalError;
@@ -2032,6 +2334,10 @@ ErrorCode SubscriptionController::restoreAccountConfigByEmail(const QString &ema
     }
     if (accountInfo.contains(apiDefs::key::supportedProtocols)) {
         apiV2.apiConfig.supportedProtocols = accountInfo.value(apiDefs::key::supportedProtocols).toArray();
+    }
+    const QString endpointUid = endpointUidFromResponse(accountInfo);
+    if (!endpointUid.isEmpty()) {
+        apiV2.apiConfig.endpointUid = endpointUid;
     }
 
     const QJsonObject restoredConfig = apiV2.toJson();
@@ -2056,7 +2362,7 @@ ErrorCode SubscriptionController::getAccountInfoByEmail(const QString &email,
     };
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             "",
                                             "",
@@ -2112,6 +2418,10 @@ ErrorCode SubscriptionController::getAccountInfoByEmail(const QString &email,
                 updatedApiV2.apiConfig.supportedProtocols =
                     result.accountInfo.value(apiDefs::key::supportedProtocols).toArray();
             }
+            const QString endpointUid = endpointUidFromResponse(result.accountInfo);
+            if (!endpointUid.isEmpty()) {
+                updatedApiV2.apiConfig.endpointUid = endpointUid;
+            }
             m_serversRepository->editServer(existingServerId, updatedApiV2.toJson(),
                                             serverConfigUtils::configTypeFromJson(updatedApiV2.toJson()));
             result.restoredServerId = existingServerId;
@@ -2143,7 +2453,7 @@ QFuture<QPair<ErrorCode, QString>> SubscriptionController::getRenewalLink(const 
     QJsonObject authDataJson = apiV2->authData.toJson();
     GatewayRequestData gatewayRequestData { QSysInfo::productType(),
                                             QString(APP_VERSION),
-                                            m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                            m_appSettingsRepository->getAppLanguage().name(),
                                             m_appSettingsRepository->getInstallationUuid(true),
                                             apiV2->apiConfig.userCountryCode,
                                             "",
@@ -2192,7 +2502,7 @@ ErrorCode SubscriptionController::resolveImportServiceCaptcha(const QString &use
 {
     GatewayRequestData gatewayRequestData{QSysInfo::productType(),
                                           QString(APP_VERSION),
-                                          m_appSettingsRepository->getAppLanguage().name().split("_").first(),
+                                          m_appSettingsRepository->getAppLanguage().name(),
                                           m_appSettingsRepository->getInstallationUuid(true),
                                           userCountryCode,
                                           "",

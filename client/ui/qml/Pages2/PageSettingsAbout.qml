@@ -8,11 +8,18 @@ import Style 1.0
 import "./"
 import "../Controls2"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Controls2/TextTypes"
 import "../Components"
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     BackButtonType {
         id: backButton
@@ -21,6 +28,7 @@ PageType {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 20 + PageController.safeAreaTopMargin
+        backButtonImageColor: RedaVia.Theme.textPrimary
 
         onActiveFocusChanged: {
             if(backButton.enabled && backButton.activeFocus) {
@@ -53,16 +61,20 @@ PageType {
             }
 
             Header2TextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textPrimary
                 Layout.fillWidth: true
                 Layout.topMargin: 16
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
-                text: qsTr("Support Amnezia")
+                text: qsTr("Support RedaVPN")
                 horizontalAlignment: Text.AlignHCenter
             }
 
             ParagraphTextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textSecondary
                 Layout.fillWidth: true
                 Layout.topMargin: 16
                 Layout.leftMargin: 16
@@ -70,14 +82,15 @@ PageType {
 
                 horizontalAlignment: Text.AlignHCenter
 
-                height: 20
+                Layout.preferredHeight: 20
                 font.pixelSize: 14
 
-                text: qsTr("Amnezia is a free and open-source application. You can support the developers if you like it.")
-                color: AmneziaStyle.color.paleGray
+                text: qsTr("RedaVPN is a free and open-source application. You can support the developers if you like it.")
             }
 
             ParagraphTextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textSecondary
                 Layout.fillWidth: true
                 Layout.topMargin: 32
                 Layout.leftMargin: 16
@@ -94,6 +107,17 @@ PageType {
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
                 Layout.topMargin: 6
 
                 text: title
@@ -103,7 +127,7 @@ PageType {
                 clickedFunction: handler
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
         }
 
@@ -111,13 +135,14 @@ PageType {
             width: listView.width
 
             CaptionTextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textSecondary
                 Layout.fillWidth: true
                 Layout.topMargin: 40
 
                 horizontalAlignment: Text.AlignHCenter
 
                 text: qsTr("Software version: %1").arg(SettingsController.getAppVersion())
-                color: AmneziaStyle.color.mutedGray
 
                 MouseArea {
                     property int clickCount: 0
@@ -133,6 +158,10 @@ PageType {
             }
 
             BasicButtonType {
+                fontFamily: RedaVia.Theme.fontFamily
+                borderColor: RedaVia.Theme.primaryGreen
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                buttonRadius: RedaVia.Theme.buttonRadius
                 id: checkUpdatesButton
 
                 Layout.alignment: Qt.AlignHCenter
@@ -140,20 +169,24 @@ PageType {
                 Layout.bottomMargin: 16
                 implicitHeight: 32
 
-                defaultColor: AmneziaStyle.color.transparent
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                disabledColor: AmneziaStyle.color.mutedGray
-                textColor: AmneziaStyle.color.goldenApricot
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.connectedInner
+                disabledColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.primaryGreen
 
                 text: qsTr("Check for updates")
 
                 clickedFunc: function() {
-                    Qt.openUrlExternally("https://github.com/amnezia-vpn/desktop-client/releases/latest")
+                    Qt.openUrlExternally("https://redavpn.com/client/desktop-client/releases/latest")
                 }
             }
 
             BasicButtonType {
+                fontFamily: RedaVia.Theme.fontFamily
+                borderColor: RedaVia.Theme.primaryGreen
+                borderFocusedColor: RedaVia.Theme.primaryGreen
+                buttonRadius: RedaVia.Theme.buttonRadius
                 id: privacyPolicyButton
 
                 Layout.alignment: Qt.AlignHCenter
@@ -161,11 +194,11 @@ PageType {
                 Layout.topMargin: -15
                 implicitHeight: 25
 
-                defaultColor: AmneziaStyle.color.transparent
-                hoveredColor: AmneziaStyle.color.translucentWhite
-                pressedColor: AmneziaStyle.color.sheerWhite
-                disabledColor: AmneziaStyle.color.mutedGray
-                textColor: AmneziaStyle.color.goldenApricot
+                defaultColor: RedaVia.Theme.cardBackground
+                hoveredColor: RedaVia.Theme.cardBackgroundAlt
+                pressedColor: RedaVia.Theme.connectedInner
+                disabledColor: RedaVia.Theme.cardBackgroundAlt
+                textColor: RedaVia.Theme.primaryGreen
 
                 text: qsTr("Privacy Policy")
 
@@ -190,18 +223,18 @@ PageType {
         readonly property string description: qsTr("To discuss features")
         readonly property string imageSource: "qrc:/images/controls/telegram.svg"
         readonly property var handler: function() {
-            Qt.openUrlExternally(qsTr("https://t.me/amnezia_vpn_en"))
+            Qt.openUrlExternally(qsTr("https://t.me/RedaLink_QA"))
         }
     }
 
     QtObject {
         id: mail
 
-        readonly property string title: qsTr("support@amnezia.org")
+        readonly property string title: qsTr("support@redavpn.com")
         readonly property string description: qsTr("For reviews and bug reports")
         readonly property string imageSource: "qrc:/images/controls/mail.svg"
         readonly property var handler: function() {
-            Qt.openUrlExternally(qsTr("mailto:support@amnezia.org"))
+            Qt.openUrlExternally(qsTr("mailto:support@redavpn.com"))
         }
     }
 
@@ -212,7 +245,7 @@ PageType {
         readonly property string description: qsTr("Discover the source code")
         readonly property string imageSource: "qrc:/images/controls/github.svg"
         readonly property var handler: function() {
-            Qt.openUrlExternally(qsTr("https://github.com/amnezia-vpn/amnezia-client"))
+            Qt.openUrlExternally(qsTr("https://redavpn.com/client/redavpn-client"))
         }
     }
 

@@ -1,6 +1,7 @@
 #include "secureAppSettingsRepository.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QUuid>
 
@@ -243,6 +244,16 @@ void SecureAppSettingsRepository::setAppsSplitTunnelingEnabled(bool enabled)
     emit appsSplitTunnelingEnabledChanged(enabled);
 }
 
+bool SecureAppSettingsRepository::isGlobalProxyEnabled() const
+{
+    return value("Conf/globalProxyEnabled", false).toBool();
+}
+
+void SecureAppSettingsRepository::setGlobalProxyEnabled(bool enabled)
+{
+    setValue("Conf/globalProxyEnabled", enabled);
+}
+
 QString SecureAppSettingsRepository::getGatewayEndpoint(bool isTestPurchase) const
 {
     if (isTestPurchase) {
@@ -456,6 +467,90 @@ void SecureAppSettingsRepository::clearSettings()
 void SecureAppSettingsRepository::setInstallationUuid(const QString &uuid)
 {
     m_settings->setValue("Conf/installationUuid", uuid);
+}
+
+QJsonObject SecureAppSettingsRepository::textLocalizationCache(const QString &language) const
+{
+    const QByteArray data = value(QStringLiteral("Localization/texts/%1/data").arg(language)).toByteArray();
+    return QJsonDocument::fromJson(data).object();
+}
+
+QString SecureAppSettingsRepository::textLocalizationVersion(const QString &language) const
+{
+    return value(QStringLiteral("Localization/texts/%1/version").arg(language)).toString();
+}
+
+QDateTime SecureAppSettingsRepository::textLocalizationUpdatedAt(const QString &language) const
+{
+    return QDateTime::fromString(
+        value(QStringLiteral("Localization/texts/%1/updatedAt").arg(language)).toString(), Qt::ISODateWithMs);
+}
+
+void SecureAppSettingsRepository::setTextLocalizationCache(const QString &language, const QString &version,
+                                                            const QJsonObject &texts, const QDateTime &updatedAt)
+{
+    const QString prefix = QStringLiteral("Localization/texts/%1/").arg(language);
+    setValue(prefix + QStringLiteral("data"), QJsonDocument(texts).toJson(QJsonDocument::Compact));
+    setValue(prefix + QStringLiteral("version"), version);
+    setValue(prefix + QStringLiteral("updatedAt"), updatedAt.toUTC().toString(Qt::ISODateWithMs));
+}
+
+QJsonObject SecureAppSettingsRepository::cityLocalizationCache(const QString &language) const
+{
+    const QByteArray data = value(QStringLiteral("Localization/cities/%1/data").arg(language)).toByteArray();
+    return QJsonDocument::fromJson(data).object();
+}
+
+QString SecureAppSettingsRepository::cityLocalizationVersion(const QString &language) const
+{
+    return value(QStringLiteral("Localization/cities/%1/version").arg(language)).toString();
+}
+
+QDateTime SecureAppSettingsRepository::cityLocalizationUpdatedAt(const QString &language) const
+{
+    return QDateTime::fromString(
+        value(QStringLiteral("Localization/cities/%1/updatedAt").arg(language)).toString(), Qt::ISODateWithMs);
+}
+
+void SecureAppSettingsRepository::setCityLocalizationCache(const QString &language, const QString &version,
+                                                            const QJsonObject &cities, const QDateTime &updatedAt)
+{
+    const QString prefix = QStringLiteral("Localization/cities/%1/").arg(language);
+    setValue(prefix + QStringLiteral("data"), QJsonDocument(cities).toJson(QJsonDocument::Compact));
+    setValue(prefix + QStringLiteral("version"), version);
+    setValue(prefix + QStringLiteral("updatedAt"), updatedAt.toUTC().toString(Qt::ISODateWithMs));
+}
+
+VpnUsagePeriod SecureAppSettingsRepository::vpnUsageForDate(const QDate &date) const
+{
+    const QString prefix = QStringLiteral("Statistics/daily/%1/").arg(date.toString(Qt::ISODate));
+    return {
+        value(prefix + QStringLiteral("durationMs"), 0).toLongLong(),
+        value(prefix + QStringLiteral("trafficBytes"), 0).toULongLong()
+    };
+}
+
+void SecureAppSettingsRepository::setVpnUsageForDate(const QDate &date, const VpnUsagePeriod &usage)
+{
+    const QString prefix = QStringLiteral("Statistics/daily/%1/").arg(date.toString(Qt::ISODate));
+    setValue(prefix + QStringLiteral("durationMs"), usage.durationMs);
+    setValue(prefix + QStringLiteral("trafficBytes"), QVariant::fromValue(usage.trafficBytes));
+}
+
+VpnUsagePeriod SecureAppSettingsRepository::vpnUsageForMonth(const QString &month) const
+{
+    const QString prefix = QStringLiteral("Statistics/monthly/%1/").arg(month);
+    return {
+        value(prefix + QStringLiteral("durationMs"), 0).toLongLong(),
+        value(prefix + QStringLiteral("trafficBytes"), 0).toULongLong()
+    };
+}
+
+void SecureAppSettingsRepository::setVpnUsageForMonth(const QString &month, const VpnUsagePeriod &usage)
+{
+    const QString prefix = QStringLiteral("Statistics/monthly/%1/").arg(month);
+    setValue(prefix + QStringLiteral("durationMs"), usage.durationMs);
+    setValue(prefix + QStringLiteral("trafficBytes"), QVariant::fromValue(usage.trafficBytes));
 }
 
 QByteArray SecureAppSettingsRepository::xraySavedConfigs() const

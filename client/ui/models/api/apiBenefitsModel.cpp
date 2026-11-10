@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QJsonValue>
 
+#include "core/utils/api/apiTextUtils.h"
+
 namespace
 {
 namespace configKey
@@ -59,9 +61,9 @@ QVariant ApiBenefitsModel::data(const QModelIndex &index, int role) const
     case IconRole:
         return item.icon;
     case TitleRole:
-        return item.title;
+        return apiTextUtils::translate(item.title);
     case BodyRole:
-        return item.body;
+        return apiTextUtils::translate(item.body);
     case LinkRole:
         return item.link;
     default:
@@ -106,6 +108,13 @@ void ApiBenefitsModel::updateModel(const QJsonArray &benefits)
         m_serviceBenefits.append(std::move(item));
     }
     endResetModel();
+}
+
+void ApiBenefitsModel::refreshTranslations()
+{
+    if (!m_serviceBenefits.isEmpty()) {
+        emit dataChanged(index(0, 0), index(m_serviceBenefits.size() - 1, 0), { TitleRole, BodyRole });
+    }
 }
 
 void ApiBenefitsModel::clear()

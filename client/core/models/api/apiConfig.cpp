@@ -158,6 +158,15 @@ QJsonObject ApiConfig::toJson() const
     if (!serverCountryName.isEmpty()) {
         obj[apiDefs::key::serverCountryName] = serverCountryName;
     }
+    if (!serverCityCode.isEmpty()) {
+        obj[apiDefs::key::serverCityCode] = serverCityCode;
+    }
+    if (!serverCityName.isEmpty()) {
+        obj[apiDefs::key::serverCityName] = serverCityName;
+    }
+    if (!endpointUid.isEmpty()) {
+        obj[apiDefs::key::endpointUid] = endpointUid;
+    }
     if (!vpnKey.isEmpty()) {
         obj[apiDefs::key::vpnKey] = vpnKey;
     }
@@ -228,6 +237,9 @@ ApiConfig ApiConfig::fromJson(const QJsonObject& json)
     config.userCountryCode = json.value(QLatin1String("user_country_code")).toString();
     config.serverCountryCode = json.value(apiDefs::key::serverCountryCode).toString();
     config.serverCountryName = json.value(apiDefs::key::serverCountryName).toString();
+    config.serverCityCode = json.value(apiDefs::key::serverCityCode).toString();
+    config.serverCityName = json.value(apiDefs::key::serverCityName).toString();
+    config.endpointUid = json.value(apiDefs::key::endpointUid).toString();
     config.vpnKey = json.value(apiDefs::key::vpnKey).toString();
     
     QJsonObject subscriptionObj = json.value(apiDefs::key::subscription).toObject();

@@ -4,8 +4,8 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
-    width: Theme.screenWidth
-    height: Theme.screenHeight
+    width: StackView.view ? StackView.view.width : Theme.screenWidth
+    height: StackView.view ? StackView.view.height : Theme.screenHeight
     radius: Theme.screenRadius
     color: Theme.background
     clip: true
@@ -14,11 +14,12 @@ Rectangle {
     property var expandedCountries: ({})
     readonly property var protocolFilters: [
         { label: qsTr("Country/Region"), protocol: "" },
-        { label: qsTr("Quick/UDP"), protocol: "wireguard" },
+        { label: qsTr("Quick"), protocol: "wireguard" },
         { label: qsTr("General"), protocol: "openvpn" },
         { label: qsTr("Obfuscated VPN"), protocol: "vless" }
     ]
     signal serverSelected(string countryCode, string countryName, string protocolName)
+    signal subscriptionRequested()
 
     function selectedProtocol() {
         if (root.activeFilter < 0 || root.activeFilter >= root.protocolFilters.length) {
@@ -87,15 +88,28 @@ Rectangle {
         root.expandedCountries = states
     }
 
-    function cityItems(cityNames, cityRequestNames) {
+    function cityItems(cityNames, cityRequestNames, cityFallbackNames, cityQualities) {
         cityNames = cityNames || []
         cityRequestNames = cityRequestNames || []
+        cityFallbackNames = cityFallbackNames || []
+        cityQualities = cityQualities || []
         var items = []
         var count = Math.min(cityNames.length, cityRequestNames.length)
         for (var i = 0; i < count; ++i) {
             var cityName = cityNames[i] || ""
-            var cityRequestName = cityRequestNames[i] || cityName
-            items.push({ name: cityName, requestName: cityRequestName, isDefault: cityName === "Default" })
+            var cityRequestName = cityRequestNames[i] || ""
+            var cityFallbackName = i < cityFallbackNames.length ? cityFallbackNames[i] : ""
+            var quality = i < cityQualities.length ? cityQualities[i] : {}
+            items.push({
+                name: cityName,
+                requestName: cityRequestName,
+                serverName: cityFallbackName,
+                isDefault: cityName === "Default",
+                latencyText: quality.latencyText || "-- ms",
+                signalBars: quality.signalBars || 0,
+                qualityStatus: quality.status || "unknown",
+                qualityLabel: quality.label || "Unknown"
+            })
         }
         return items
     }
@@ -122,40 +136,18 @@ Rectangle {
                                     0x1F1E6 + code.charCodeAt(1) - 65)
     }
 
-    function pingText(countryCode) {
-        countryCode = countryCode || ""
-        switch (countryCode.toUpperCase()) {
-        case "GB": return "16 ms"
-        case "US": return "167 ms"
-        case "FR": return "67 ms"
-        case "DE": return "67 ms"
-        case "CA": return "89 ms"
-        case "SG": return "38 ms"
-        case "JP": return "65 ms"
-        default: return "-- ms"
-        }
-    }
-
-    function pingColor(countryCode) {
-        countryCode = countryCode || ""
-        switch (countryCode.toUpperCase()) {
-        case "US": return "#ff5353"
-        case "CA": return "#ffd21e"
-        default: return "#35e76f"
-        }
-    }
-
-    function selectConnectionCountry(countryIndex, countryCode, countryName, cityName) {
+    function selectConnectionCountry(countryIndex, countryCode, countryName, cityCode, cityName) {
         countryCode = countryCode || ""
         countryName = countryName || ""
         var currentCountryCode = ServersUiController.defaultServerApiCountryCode
+        var requestedCityCode = cityCode || ""
         var requestedCityName = cityName || ""
         var requestedProtocol = root.selectedRequestProtocol()
-        if (requestedCityName.length === 0 && requestedProtocol.length === 0
+        if (requestedCityCode.length === 0 && requestedProtocol.length === 0
                 && countryCode.length > 0 && countryCode === currentCountryCode) {
             return true
         }
-        if (requestedCityName.length === 0 && requestedProtocol.length === 0
+        if (requestedCityCode.length === 0 && requestedProtocol.length === 0
                 && countryIndex === ApiCountryModel.currentIndex && countryCode === currentCountryCode) {
             return true
         }
@@ -173,8 +165,10 @@ Rectangle {
         }
 
         var serverId = ServersUiController.defaultServerId
-        if (serverId.length === 0) {
-            PageController.showNotificationMessage(qsTr("No VPN configuration installed"))
+        if (serverId.length === 0
+                || (ServersUiController.isServerFromApi(serverId)
+                    && ServersUiController.isServerSubscriptionExpired(serverId))) {
+            root.subscriptionRequested()
             return false
         }
         if (!ServersUiController.isServerFromApi(serverId)) {
@@ -185,7 +179,8 @@ Rectangle {
         ServersUiController.setProcessedServerId(serverId)
 
         PageController.showBusyIndicator(true)
-        var result = SubscriptionUiController.updateServiceFromGateway(serverId, countryCode, countryName, false, requestedProtocol, requestedCityName)
+        var result = SubscriptionUiController.updateServiceFromGateway(serverId, countryCode, countryName, false,
+                                                                       requestedProtocol, requestedCityCode, requestedCityName)
         PageController.showBusyIndicator(false)
         return result
     }
@@ -195,6 +190,36 @@ Rectangle {
         if (serverId.length > 0 && ServersUiController.isServerFromApi(serverId)) {
             ServersUiController.setProcessedServerId(serverId)
             SubscriptionUiController.refreshApiCountryModelFromServer(serverId)
+            SubscriptionUiController.refreshNodeQuality()
+        }
+    }
+    Component.onDestruction: SubscriptionUiController.stopNodeQualityMonitoring()
+
+    Timer {
+        interval: 45000
+        repeat: true
+        running: root.visible && Qt.application.state === Qt.ApplicationActive
+        onTriggered: SubscriptionUiController.refreshNodeQuality()
+    }
+
+    Connections {
+        target: NetworkReachabilityController
+        function onHasInternetAccessChanged() {
+            if (NetworkReachabilityController.hasInternetAccess
+                    && root.visible && Qt.application.state === Qt.ApplicationActive) {
+                SubscriptionUiController.refreshNodeQuality()
+            }
+        }
+    }
+
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            if (Qt.application.state === Qt.ApplicationActive && root.visible) {
+                SubscriptionUiController.refreshNodeQuality()
+            } else {
+                SubscriptionUiController.stopNodeQualityMonitoring()
+            }
         }
     }
 
@@ -212,17 +237,20 @@ Rectangle {
             Layout.topMargin: 10
 
             Item { Layout.fillWidth: true }
-            Text {
-                text: "Locations"
-                font { family: Theme.fontFamily; pixelSize: 20; bold: true }
-                color: Theme.textPrimary
-                Layout.alignment: Qt.AlignHCenter
-            }
-            Item { Layout.fillWidth: true }
-            Text {
-                text: "⌕"
-                font { family: Theme.fontFamily; pixelSize: 25 }
-                color: Theme.textPrimary
+            Button {
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
+                background: Item { }
+                contentItem: Image {
+                    source: "qrc:/images/controls/search.svg"
+                    sourceSize.width: 25
+                    sourceSize.height: 25
+                    fillMode: Image.PreserveAspectFit
+                }
+                onClicked: {
+                    searchInput.forceActiveFocus()
+                    Qt.inputMethod.show()
+                }
             }
         }
 
@@ -371,13 +399,6 @@ Rectangle {
             spacing: 10
             clip: true
 
-            // Reserve scrollable space for the overlaid navigation bar so the
-            // final country or city row can be brought fully into view.
-            footer: Item {
-                width: ListView.view ? ListView.view.width : 0
-                height: bottomTabBar.height
-            }
-
             model: ApiCountryModel
             currentIndex: ApiCountryModel.currentIndex
 
@@ -390,10 +411,10 @@ Rectangle {
                 readonly property int countryModelIndex: index
                 readonly property int rowHeight: 62
                 readonly property int cityRowHeight: 46
-                readonly property var visibleCityItems: root.cityItems(cityNames, cityRequestNames)
+                readonly property var visibleCityItems: root.cityItems(cityNames, cityRequestNames, cityFallbackNames, cityQualities)
 
-                function selectLocation(countryIndex, code, name, cityName, displayName) {
-                    if (pageRoot.selectConnectionCountry(countryIndex, code, name, cityName)) {
+                function selectLocation(countryIndex, code, name, cityCode, cityName, displayName) {
+                    if (pageRoot.selectConnectionCountry(countryIndex, code, name, cityCode, cityName)) {
                         pageRoot.serverSelected(code, displayName || name, pageRoot.selectedRequestProtocol())
                     }
                 }
@@ -439,9 +460,7 @@ Rectangle {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: cityCount === 1
-                                  ? qsTr("1 Location")
-                                  : qsTr("%1 Locations").arg(cityCount)
+                            text: qsTr("%n Location(s)", "", cityCount)
                             font { family: Theme.fontFamily; pixelSize: 11 }
                             color: Theme.textSecondary
                             elide: Text.ElideRight
@@ -449,15 +468,17 @@ Rectangle {
                     }
 
                     Text {
-                        text: root.pingText(countryCode)
+                        text: countryQualityStatus === "offline" ? qsTr("Offline") : countryLatencyText
                         font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
-                        color: root.pingColor(countryCode)
+                        color: countryQualityStatus === "online" || countryQualityStatus === "degraded"
+                               ? Theme.primaryGreen : Theme.textSecondary
+                        horizontalAlignment: Text.AlignRight
                     }
 
-                    Text {
-                        text: "▥"
-                        font { family: Theme.fontFamily; pixelSize: 16 }
-                        color: Theme.primaryGreen
+                    NodeSignalBars {
+                        bars: countrySignalBars
+                        status: countryQualityStatus
+                        Accessible.name: countryQualityLabel
                     }
 
                     Rectangle {
@@ -558,10 +579,24 @@ Rectangle {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: modelData.name
+                                    text: modelData.isDefault ? qsTr("Default") : modelData.name
                                     font { family: Theme.fontFamily; pixelSize: 13; weight: Font.Medium }
                                     color: Theme.textPrimary
                                     elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    text: modelData.qualityStatus === "offline" ? qsTr("Offline") : modelData.latencyText
+                                    font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
+                                    color: modelData.qualityStatus === "online" || modelData.qualityStatus === "degraded"
+                                           ? Theme.primaryGreen : Theme.textSecondary
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                NodeSignalBars {
+                                    bars: modelData.signalBars
+                                    status: modelData.qualityStatus
+                                    Accessible.name: modelData.qualityLabel
                                 }
                             }
 
@@ -571,7 +606,7 @@ Rectangle {
                                 onClicked: {
                                     var selectedIndex = modelData.isDefault ? countryDelegate.countryModelIndex : -1
                                     countryDelegate.selectLocation(selectedIndex, countryCode, countryName,
-                                                                   modelData.requestName,
+                                                                   modelData.requestName, modelData.serverName,
                                                                    modelData.isDefault ? countryName : modelData.name)
                                 }
                             }
@@ -593,22 +628,19 @@ Rectangle {
                             var selectedIndex = firstCity.isDefault
                                     ? countryDelegate.countryModelIndex : -1
                             countryDelegate.selectLocation(selectedIndex, countryCode, countryName,
-                                                           firstCity.requestName,
+                                                           firstCity.requestName, firstCity.serverName,
                                                            firstCity.isDefault ? countryName : firstCity.name)
                             return
                         }
 
                         var defaultCode = defaultCountryCode || ""
                         var selectionCode = defaultCode.length > 0 ? defaultCode : countryCode
-                        countryDelegate.selectLocation(index, selectionCode, countryName, "", countryName)
+                        countryDelegate.selectLocation(index, selectionCode, countryName, "", "", countryName)
                     }
                 }
             }
         }
     }
 
-    BottomTabBar {
-        id: bottomTabBar
-        currentIndex: 1
-    }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

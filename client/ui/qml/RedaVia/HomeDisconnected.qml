@@ -3,6 +3,8 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import Qt5Compat.GraphicalEffects
 
+import "../Controls2"
+
 Rectangle {
     id: root
     width: Theme.screenWidth
@@ -16,7 +18,7 @@ Rectangle {
     signal subscriptionRequested()
 
     property string countryCode: "GB"
-    property string countryName: "United Kingdom"
+    property string countryName: qsTr("United Kingdom")
     property string protocolName: ""
     property bool showSubscriptionStatusBar: false
 
@@ -40,9 +42,26 @@ Rectangle {
         }
     }
 
-    ColumnLayout {
+    function scrollToNetworkStats() {
+        flickable.contentY = Math.max(0, Math.min(networkStats.y,
+                                                   flickable.contentHeight - flickable.height))
+    }
+
+    Flickable {
+        id: flickable
         anchors.fill: parent
-        spacing: 0
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.DragOverBounds
+
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        ColumnLayout {
+            id: content
+            width: flickable.width
+            spacing: 0
 
         //StatusBar { Layout.fillWidth: true }
 
@@ -53,7 +72,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 20
-            text: "Connecting Time"
+            text: qsTr("Connecting Time")
             font { family: Theme.fontFamily; pixelSize: 14 }
             color: Theme.textBody
             horizontalAlignment: Text.AlignHCenter
@@ -80,63 +99,48 @@ Rectangle {
             PowerButton {
                 anchors.horizontalCenter: parent.horizontalCenter
                 connected: false
-                onClicked: root.connectPressed()
+                onClicked: {
+                    if (root.showSubscriptionStatusBar) {
+                        subscriptionStatusButton.forceActiveFocus()
+                        return
+                    }
+
+                    root.connectPressed()
+                }
             }
         }
 
-        // PageRedaVia owns and refreshes the current subscription state.
-        Rectangle {
+        BasicButtonType {
+            id: subscriptionStatusButton
+            visible: root.showSubscriptionStatusBar
+
             Layout.fillWidth: true
-            Layout.preferredHeight: 58
             Layout.leftMargin: 28
             Layout.rightMargin: 28
-            radius: 20
-            color: Theme.cardBackground
-            visible: root.showSubscriptionStatusBar
+            Layout.topMargin: 16
+            Layout.bottomMargin: 8
+
+            text: qsTr("Subscribe to RedaVPN — Choose Plan")
+            defaultColor: "#F5E6C8"
+            hoveredColor: "#EBD7AF"
+            pressedColor: "#DEC18A"
+            textColor: Theme.dangerRed
+            borderColor: Theme.borderColor
+            borderWidth: 1
+            borderFocusedWidth: 0
+            buttonRadius: 20
+            fontFamily: Theme.fontFamily
+            clickedFunc: function() {
+                root.subscriptionRequested()
+            }
 
             opacity: 0
             Component.onCompleted: opacity = 1
             Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutQuad } }
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 20
-                anchors.rightMargin: 20
-
-                Row {
-                    spacing: 8
-
-                    Rectangle {
-                        width: 10; height: 10; radius: 5
-                        color: Theme.dangerRed
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Text {
-                        text: "Subscribe to RedaVPN"
-                        font { family: Theme.fontFamily; pixelSize: 15; weight: Font.DemiBold }
-                        color: Theme.dangerRed
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: "Choose Plan"
-                    font { family: Theme.fontFamily; pixelSize: 14 }
-                    color: Theme.textMuted
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.subscriptionRequested()
-            }
         }
 
         ServerCard {
-            Layout.topMargin: 16
+            Layout.topMargin: 8
             flag: root.flagEmoji(root.countryCode)
             country: root.countryName.length > 0 ? root.countryName : qsTr("Select location")
             ipAddress: root.protocolDisplayName(root.protocolName)
@@ -149,7 +153,21 @@ Rectangle {
             uploadSpeed: "0 Mbps"
         }
 
-        Item { Layout.fillHeight: true }
+        Button {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 12
+            Layout.bottomMargin: 8
+            implicitWidth: 48
+            implicitHeight: 48
+            background: Item { }
+            contentItem: Image {
+                source: "qrc:/ui/qml/RedaVia/assets/doublearrows.svg"
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 32
+                sourceSize.height: 32
+            }
+            onClicked: root.scrollToNetworkStats()
+        }
 
         // Planet earth
         Item {
@@ -178,7 +196,12 @@ Rectangle {
                 maskSource: earthMask
             }
         }
+
+            HomeNetworkStats {
+                id: networkStats
+            }
+        }
     }
 
-    BottomTabBar { currentIndex: 0 }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

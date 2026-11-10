@@ -16,7 +16,7 @@ RowLayout {
         spacing: 11
         Text {
             Layout.fillWidth: true
-            text: "↓  Download"
+            text: qsTr("↓  Download")
             font { family: Theme.fontFamily; pixelSize: 12 }
             color: Theme.textLabel
             horizontalAlignment: Text.AlignHCenter
@@ -42,7 +42,7 @@ RowLayout {
         spacing: 11
         Text {
             Layout.fillWidth: true
-            text: "↑  Upload"
+            text: qsTr("↑  Upload")
             font { family: Theme.fontFamily; pixelSize: 12 }
             color: Theme.textLabel
             horizontalAlignment: Text.AlignHCenter

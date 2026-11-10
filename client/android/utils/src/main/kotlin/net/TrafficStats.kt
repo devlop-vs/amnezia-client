@@ -38,15 +38,18 @@ class TrafficStats {
     fun isSupported(): Boolean =
         lastTrafficData.rx != TrafficStats.UNSUPPORTED.toLong() && lastTrafficData.tx != TrafficStats.UNSUPPORTED.toLong()
 
-    fun getSpeed(): TrafficData {
+    fun getUpdate(): TrafficUpdate {
         val timestamp = SystemClock.elapsedRealtime()
         val elapsedSeconds = (timestamp - lastTimestamp) / 1000.0
         val trafficData = getTrafficDataCompat()
-        val speed = trafficData.diff(lastTrafficData, elapsedSeconds)
+        val delta = trafficData.diff(lastTrafficData)
+        val speed = delta.perSecond(elapsedSeconds)
         lastTrafficData = trafficData
         lastTimestamp = timestamp
-        return speed
+        return TrafficUpdate(delta, speed)
     }
+
+    data class TrafficUpdate(val delta: TrafficData, val speed: TrafficData)
 
     class TrafficData(val rx: Long, val tx: Long) {
 
@@ -64,13 +67,20 @@ class TrafficStats {
                 return _txString ?: throw AssertionError("Set to null by another thread")
             }
 
-        fun diff(other: TrafficData, elapsedSeconds: Double): TrafficData {
-            val rx = ((this.rx - other.rx) / elapsedSeconds).round()
-            val tx = ((this.tx - other.tx) / elapsedSeconds).round()
+        fun diff(other: TrafficData): TrafficData {
+            val rx = (this.rx - other.rx).coerceAtLeast(0L)
+            val tx = (this.tx - other.tx).coerceAtLeast(0L)
             return if (rx == 0L && tx == 0L) ZERO else TrafficData(rx, tx)
         }
 
-        private fun Double.round() = if (isNaN()) 0L else roundToLong()
+        fun perSecond(elapsedSeconds: Double): TrafficData {
+            if (elapsedSeconds <= 0.0) return ZERO
+            val rx = (this.rx / elapsedSeconds).round()
+            val tx = (this.tx / elapsedSeconds).round()
+            return if (rx == 0L && tx == 0L) ZERO else TrafficData(rx, tx)
+        }
+
+        private fun Double.round() = if (!isFinite()) 0L else roundToLong()
 
         private fun Long.speedToString() =
             when {

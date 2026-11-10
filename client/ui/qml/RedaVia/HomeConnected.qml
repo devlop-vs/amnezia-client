@@ -14,7 +14,7 @@ Rectangle {
     signal disconnectPressed()
 
     property string countryCode: "GB"
-    property string countryName: "United Kingdom"
+    property string countryName: qsTr("United Kingdom")
     property string protocolName: "wireguard"
 
     function flagEmoji(countryCode) {
@@ -47,9 +47,26 @@ Rectangle {
         }
     }
 
-    ColumnLayout {
+    function scrollToNetworkStats() {
+        flickable.contentY = Math.max(0, Math.min(networkStats.y,
+                                                   flickable.contentHeight - flickable.height))
+    }
+
+    Flickable {
+        id: flickable
         anchors.fill: parent
-        spacing: 0
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.DragOverBounds
+
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        ColumnLayout {
+            id: content
+            width: flickable.width
+            spacing: 0
 
         //StatusBar { Layout.fillWidth: true }
 
@@ -99,7 +116,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 4
-            text: "212.369.56.87"
+            text: ServersUiController.serverHostName(ConnectionController.connectionServerId)
             font { family: Theme.fontFamily; pixelSize: 14 }
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
@@ -151,7 +168,7 @@ Rectangle {
                         }
                     }
                     Text {
-                        text: "Connected"
+                        text: qsTr("Connected")
                         font { family: Theme.fontFamily; pixelSize: 15; weight: Font.DemiBold }
                         color: Theme.primaryGreen
                     }
@@ -183,9 +200,9 @@ Rectangle {
 
             Repeater {
                 model: [
-                    "Ping",
-                    "Protocol",
-                    "Duration"
+                    { key: "ping", label: qsTr("Ping") },
+                    { key: "protocol", label: qsTr("Protocol") },
+                    { key: "duration", label: qsTr("Duration") }
                 ]
 
                 Rectangle {
@@ -201,14 +218,14 @@ Rectangle {
                         spacing: 15
 
                         Text {
-                            text: modelData
+                            text: modelData.label
                             font { family: Theme.fontFamily; pixelSize: 12 }
                             color: Theme.textMuted
                         }
                         Text {
-                            text: modelData === "Duration"
+                            text: modelData.key === "duration"
                                   ? ConnectionController.connectionDurationText
-                                  : (modelData === "Protocol" ? root.protocolShortName(root.protocolName) : "16 ms")
+                                  : (modelData.key === "protocol" ? root.protocolShortName(root.protocolName) : "16 ms")
                             font { family: Theme.fontFamily; pixelSize: 18; bold: true }
                             color: Theme.primaryGreen
                         }
@@ -217,7 +234,21 @@ Rectangle {
             }
         }
 
-        Item { Layout.fillHeight: true }
+        Button {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 12
+            Layout.bottomMargin: 8
+            implicitWidth: 48
+            implicitHeight: 48
+            background: Item { }
+            contentItem: Image {
+                source: "qrc:/ui/qml/RedaVia/assets/doublearrows.svg"
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: 32
+                sourceSize.height: 32
+            }
+            onClicked: root.scrollToNetworkStats()
+        }
 
         // Planet earth
         Item {
@@ -246,7 +277,12 @@ Rectangle {
                 maskSource: earthMask
             }
         }
+
+            HomeNetworkStats {
+                id: networkStats
+            }
+        }
     }
 
-    BottomTabBar { currentIndex: 0 }
+    // Bottom navigation is provided by PageStartRedaVia's TabBar.
 }

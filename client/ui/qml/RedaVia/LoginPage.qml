@@ -21,7 +21,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            text: "Reda VPN"
+            text: qsTr("Reda VPN")
             font { family: Theme.fontFamily; pixelSize: 30; bold: true }
             color: Theme.textPrimary
             horizontalAlignment: Text.AlignHCenter
@@ -30,7 +30,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             Layout.topMargin: 12
-            text: "Welcome back"
+            text: qsTr("Welcome back")
             font { family: Theme.fontFamily; pixelSize: 14 }
             color: Theme.textSecondary
             horizontalAlignment: Text.AlignHCenter
@@ -40,7 +40,7 @@ Rectangle {
         Text {
             Layout.leftMargin: 24
             Layout.topMargin: 50
-            text: "EMAIL"
+            text: qsTr("EMAIL")
             font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
             color: Theme.textMuted
         }
@@ -73,7 +73,7 @@ Rectangle {
                 Text {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
-                    text: "name@example.com"
+                    text: qsTr("name@example.com")
                     font: parent.font
                     color: Theme.textPlaceholder
                     visible: !parent.text && !parent.activeFocus
@@ -85,7 +85,7 @@ Rectangle {
         Text {
             Layout.leftMargin: 24
             Layout.topMargin: 24
-            text: "PASSWORD"
+            text: qsTr("PASSWORD")
             font { family: Theme.fontFamily; pixelSize: 12; weight: Font.Medium }
             color: Theme.textMuted
         }
@@ -119,7 +119,7 @@ Rectangle {
                 Text {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
-                    text: "••••••••"
+                    text: qsTr("••••••••")
                     font: parent.font
                     color: Theme.textPlaceholder
                     visible: !parent.text && !parent.activeFocus
@@ -132,7 +132,7 @@ Rectangle {
             Layout.alignment: Qt.AlignRight
             Layout.rightMargin: 20
             Layout.topMargin: 16
-            text: "Forgot password?"
+            text: qsTr("Forgot password?")
             font { family: Theme.fontFamily; pixelSize: 13; weight: Font.Medium }
             color: Theme.primaryGreen
 
@@ -148,7 +148,7 @@ Rectangle {
             Layout.leftMargin: 20
             Layout.rightMargin: 20
             Layout.topMargin: 24
-            text: "Sign in"
+            text: qsTr("Sign in")
             onClicked: root.signInClicked(emailInput.text, passwordInput.text)
         }
 

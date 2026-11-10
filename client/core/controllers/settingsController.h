@@ -65,6 +65,9 @@ public:
     bool isStrictKillSwitchEnabled() const;
     void toggleStrictKillSwitch(bool enable);
 
+    bool isGlobalProxyEnabled() const;
+    void toggleGlobalProxy(bool enable);
+
     QString getInstallationUuid(bool createIfNotExists = true) const;
 
     void enableDevMode();

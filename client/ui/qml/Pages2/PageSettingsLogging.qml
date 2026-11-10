@@ -10,11 +10,18 @@ import Style 1.0
 
 import "../Controls2"
 import "../Config"
+import "../RedaVia" as RedaVia
 import "../Components"
 import "../Controls2/TextTypes"
 
 PageType {
     id: root
+
+    Rectangle {
+        anchors.fill: parent
+        color: RedaVia.Theme.background
+        z: -1
+    }
 
     BackButtonType {
         id: backButton
@@ -23,6 +30,7 @@ PageType {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 20 + PageController.safeAreaTopMargin
+        backButtonImageColor: RedaVia.Theme.textPrimary
 
         onFocusChanged: {
             if (this.activeFocus) {
@@ -47,12 +55,29 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
+                fontFamily: RedaVia.Theme.fontFamily
+                headerTextColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
                 headerText: qsTr("Logging")
                 descriptionText: qsTr("Enabling this function will save application's logs automatically. " +
                                       "By default, logging functionality is disabled. Enable log saving in case of application malfunction.")
             }
 
             SwitcherType {
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                contentLeftPadding: 16
+                textColor: RedaVia.Theme.textPrimary
+                descriptionTextColor: RedaVia.Theme.textSecondary
+                checkedIndicatorColor: RedaVia.Theme.primaryGreen
+                checkedIndicatorBorderColor: RedaVia.Theme.primaryGreen
+                checkedInnerCircleColor: RedaVia.Theme.background
+                defaultIndicatorBorderColor: RedaVia.Theme.borderColor
+                defaultInnerCircleColor: RedaVia.Theme.textSecondary
+                borderFocusedColor: RedaVia.Theme.primaryGreen
                 id: switcher
 
                 Layout.fillWidth: true
@@ -71,10 +96,21 @@ PageType {
                 }
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
                 Layout.topMargin: -8
 
                 text: qsTr("Clear logs")
@@ -114,6 +150,8 @@ PageType {
             enabled: isVisible
 
             ListItemTitleType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textPrimary
                 Layout.fillWidth: true
                 Layout.topMargin: 8
                 Layout.leftMargin: 16
@@ -123,18 +161,29 @@ PageType {
             }
 
             ParagraphTextType {
+                font.family: RedaVia.Theme.fontFamily
+                color: RedaVia.Theme.textSecondary
                 Layout.fillWidth: true
                 Layout.topMargin: 8
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
-
-                color: AmneziaStyle.color.mutedGray
 
                 text: description
             }
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
                 Layout.topMargin: -8
                 Layout.bottomMargin: -8
 
@@ -147,10 +196,21 @@ PageType {
                 clickedFunction: openLogsHandler
             }
 
-            DividerType {}
+            DividerType { visible: false }
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                fontFamily: RedaVia.Theme.fontFamily
+                cardColor: RedaVia.Theme.cardBackground
+                cardBorderColor: RedaVia.Theme.borderColor
+                cardBorderWidth: 1
+                cardRadius: RedaVia.Theme.buttonRadius
+                textColor: RedaVia.Theme.textPrimary
+                descriptionColor: RedaVia.Theme.textSecondary
+                rightImageColor: RedaVia.Theme.textPrimary
+                leftImageColor: RedaVia.Theme.textPrimary
                 Layout.topMargin: -8
                 Layout.bottomMargin: -8
 
@@ -161,7 +221,7 @@ PageType {
                 clickedFunction: exportLogsHandler
             }
 
-            DividerType {}
+            DividerType { visible: false }
         }
     }
 
@@ -179,7 +239,7 @@ PageType {
         id: clientLogs
 
         readonly property string title: qsTr("Client logs")
-        readonly property string description: qsTr("AmneziaVPN logs")
+        readonly property string description: qsTr("RedaVPN logs")
         readonly property bool isVisible: true
         readonly property var openLogsHandler: function() {
             SettingsController.openLogsFolder()
@@ -187,11 +247,11 @@ PageType {
         readonly property var exportLogsHandler: function() {
             var fileName = ""
             if (GC.isMobile()) {
-                fileName = "AmneziaVPN.log"
+                fileName = "RedaVPN.log"
             } else {
                 fileName = SystemController.getFileName(qsTr("Save"),
                                                         qsTr("Logs files (*.log)"),
-                                                        StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/AmneziaVPN",
+                                                        StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/RedaVPN",
                                                         true,
                                                         ".log")
             }
@@ -208,7 +268,7 @@ PageType {
         id: serviceLogs
 
         readonly property string title: qsTr("Service logs")
-        readonly property string description: qsTr("AmneziaVPN-service logs")
+        readonly property string description: qsTr("RedaVPN-service logs")
         readonly property bool isVisible: !GC.isMobile() && !IsMacOsNeBuild
         readonly property var openLogsHandler: function() {
             SettingsController.openServiceLogsFolder()
@@ -217,7 +277,7 @@ PageType {
             var fileName = ""
             fileName = SystemController.getFileName(qsTr("Save"),
                                                     qsTr("Logs files (*.log)"),
-                                                    StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/AmneziaVPN-service",
+                                                    StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/RedaVPN-service",
                                                     true,
                                                     ".log")
             if (fileName !== "") {
